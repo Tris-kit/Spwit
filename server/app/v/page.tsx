@@ -14,9 +14,16 @@ export default function ViewPage() {
   const [state, setState] = useState<State>({ status: "loading" });
 
   useEffect(() => {
-    const encoded = window.location.hash.replace(/^#/, "");
-    const bill = encoded ? decodeBill(encoded) : null;
-    setState(bill ? { status: "ok", bill } : { status: "error" });
+    // Re-decode on mount AND whenever the hash changes — opening a different
+    // link in the same tab only changes the fragment, which doesn't remount.
+    const load = () => {
+      const encoded = window.location.hash.replace(/^#/, "");
+      const bill = encoded ? decodeBill(encoded) : null;
+      setState(bill ? { status: "ok", bill } : { status: "error" });
+    };
+    load();
+    window.addEventListener("hashchange", load);
+    return () => window.removeEventListener("hashchange", load);
   }, []);
 
   if (state.status === "ok") return <BillView bill={state.bill} />;
