@@ -18,6 +18,12 @@ export function BillView({
   const breakdown = computeBreakdown(bill);
   const unpaidSet = new Set(unpaid ?? []);
 
+  // Everyone pays the bill owner ("me"), each with their own total pre-filled.
+  const owner = bill.people.find((p) => p.isMe);
+  const ownerVenmo = owner?.venmo?.trim();
+  const ownerZelle = owner?.zelle?.trim();
+  const note = bill.name?.trim() || "Tabby split";
+
   return (
     <main style={styles.page}>
       <div style={styles.container}>
@@ -40,9 +46,8 @@ export function BillView({
         <section style={styles.cards}>
           {breakdown.perPerson.map((pb) => {
             const isUnpaid = unpaidSet.has(pb.person.id);
-            const venmo = pb.person.venmo?.trim();
-            const zelle = pb.person.zelle?.trim();
-            const note = bill.name?.trim() || "Tabby split";
+            // The owner is owed, not paying — everyone else gets a pay link.
+            const canPay = !pb.person.isMe && (ownerVenmo || ownerZelle);
             return (
               <div key={pb.person.id} style={styles.card}>
                 <div style={styles.cardHead}>
@@ -50,10 +55,7 @@ export function BillView({
                     {avatarLabel(pb.person)}
                   </div>
                   <div style={styles.who}>
-                    <div style={styles.name}>
-                      {pb.person.name}
-                      {pb.person.isMe ? " (you)" : ""}
-                    </div>
+                    <div style={styles.name}>{pb.person.name}</div>
                     {unpaid !== undefined && (
                       <div style={isUnpaid ? styles.badgeUnpaid : styles.badgePaid}>
                         {isUnpaid ? "Unpaid" : "Paid"}
@@ -85,19 +87,23 @@ export function BillView({
                   </li>
                 </ul>
 
-                {(venmo || zelle) && (
+                {canPay && (
                   <div style={styles.pay}>
-                    {venmo && (
+                    {ownerVenmo && (
                       <a
                         style={styles.payBtn}
-                        href={venmoLink(venmo, pb.totalCents, note)}
+                        href={venmoLink(ownerVenmo, pb.totalCents, note)}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        Pay @{venmo.replace(/^@/, "")} on Venmo
+                        Pay {money(pb.totalCents)} on Venmo
                       </a>
                     )}
-                    {zelle && <div style={styles.zelle}>Zelle: {zelle}</div>}
+                    {ownerZelle && (
+                      <div style={styles.zelle}>
+                        Zelle {ownerZelle} · {money(pb.totalCents)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -119,7 +125,17 @@ export function BillView({
           </section>
         )}
 
-        <footer style={styles.footer}>Split with Tabby</footer>
+        <footer style={styles.footer}>
+          <a
+            href="https://venmo.com/u/tristan-schwichow"
+            target="_blank"
+            rel="noreferrer"
+            style={styles.coffee}
+          >
+            ☕ Buy me a coffee
+          </a>
+          <div style={styles.footerNote}>Split with Tabby</div>
+        </footer>
       </div>
     </main>
   );
@@ -241,8 +257,14 @@ const styles: Record<string, React.CSSProperties> = {
   receipt: { maxWidth: "100%", borderRadius: 18, border: "1px solid var(--border)" },
   footer: {
     textAlign: "center",
-    color: "var(--text-dim)",
-    fontSize: 13,
     marginTop: 28,
   },
+  coffee: {
+    display: "inline-block",
+    color: "var(--primary)",
+    fontWeight: 700,
+    fontSize: 15,
+    marginBottom: 8,
+  },
+  footerNote: { color: "var(--text-dim)", fontSize: 13 },
 };
