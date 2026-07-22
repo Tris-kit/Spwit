@@ -18,6 +18,7 @@ import {
 import { Assignments, Item, Person } from "../types";
 import { splitEqually, toCents } from "../split";
 import { pickContact } from "../contacts";
+import { promptText } from "../prompt";
 import { Avatar, AvatarNameRow, AvatarStyleControls, Button, Card, Field, Icon, SwipeRow } from "../ui";
 import { makeId } from "../util";
 import { colors, personColors, radius, spacing } from "../theme";
@@ -170,7 +171,7 @@ export function BuildScreen({
 
   // --- item editing (native prompts stay above the keyboard) ------------
   const promptRename = (item: Item) => {
-    Alert.prompt(
+    promptText(
       "Rename item",
       undefined,
       [
@@ -190,7 +191,7 @@ export function BuildScreen({
   };
 
   const promptPrice = (item: Item) => {
-    Alert.prompt(
+    promptText(
       "Edit price",
       "Enter the dollar amount",
       [
@@ -211,7 +212,7 @@ export function BuildScreen({
   };
 
   const promptSplit = (item: Item) => {
-    Alert.prompt(
+    promptText(
       "Split item",
       `Divide "${item.name}" into how many separate items?`,
       [
@@ -255,7 +256,7 @@ export function BuildScreen({
   };
 
   const promptName = () => {
-    Alert.prompt(
+    promptText(
       "Name this bill",
       "e.g. Sushi night",
       [
@@ -269,7 +270,7 @@ export function BuildScreen({
 
   const addItem = () => {
     setEditingRowId(null);
-    Alert.prompt(
+    promptText(
       "New item",
       "Item name",
       [
@@ -278,7 +279,7 @@ export function BuildScreen({
           text: "Next",
           onPress: (name?: string) => {
             const nm = (name ?? "").trim() || "Item";
-            Alert.prompt(
+            promptText(
               "Price",
               `Price for "${nm}"`,
               [
@@ -611,7 +612,7 @@ export function BuildScreen({
                   autoFocus={!editingPersonId}
                 />
 
-                {!editingPersonId && (
+                {!editingPersonId && Platform.OS !== "web" && (
                   <Button
                     title="Import from Contacts"
                     onPress={importPerson}

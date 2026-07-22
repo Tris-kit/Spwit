@@ -1,7 +1,7 @@
 // Shared "pick one contact from the iPhone address book" helper. Used by the
 // Contacts screen and the Build screen's add-person sheet. Fails gracefully when
 // the native module isn't in the running build (needs a fresh Xcode build).
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 
 export type ImportedContact = {
   name: string;
@@ -48,6 +48,11 @@ async function persistContactPhoto(
 }
 
 export async function pickContact(): Promise<ImportedContact | null> {
+  // The browser has no address-book API — add people by name instead.
+  if (Platform.OS === "web") {
+    Alert.alert("Not available on web", "Add people by typing their name instead.");
+    return null;
+  }
   try {
     const Contacts = require("expo-contacts");
     const { status } = await Contacts.requestPermissionsAsync();

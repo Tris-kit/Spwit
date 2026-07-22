@@ -1,7 +1,7 @@
 // Spwit — receipt tab splitter. Flow: start → build → tax/tip → totals.
 // Start also branches out to Profile, Contacts, and History.
 import React, { useEffect, useState } from "react";
-import { SafeAreaView, StatusBar, StyleSheet } from "react-native";
+import { Platform, SafeAreaView, StatusBar, StyleSheet, View } from "react-native";
 import { Assignments, Charges, Item, Person, SavedReceipt } from "./src/types";
 import { makeId } from "./src/util";
 import {
@@ -219,9 +219,12 @@ export default function App() {
     saveHistory(next);
   };
 
+  const isWeb = Platform.OS === "web";
+
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+    <View style={[styles.outer, isWeb && styles.outerWeb]}>
+      <SafeAreaView style={[styles.root, isWeb && styles.rootWeb]}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
 
       {step === "start" && (
         <StartScreen
@@ -311,10 +314,21 @@ export default function App() {
           onFocusHandled={() => setHistoryFocusId(null)}
         />
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outer: { flex: 1, backgroundColor: colors.bg },
+  // On web, sit the phone-width app column on a neutral backdrop, centered.
+  outerWeb: { backgroundColor: "#EFE7DF", alignItems: "center" },
   root: { flex: 1, backgroundColor: colors.bg },
+  rootWeb: {
+    width: "100%",
+    maxWidth: 460,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.border,
+  },
 });

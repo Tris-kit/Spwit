@@ -16,6 +16,7 @@ import {
 import { Bill, Person } from "../types";
 import { computeBreakdown, toDollars } from "../split";
 import { sendGroupText } from "../sms";
+import { promptText } from "../prompt";
 import { canShareBreakdown, shareBreakdown } from "../shareLink";
 import { shareBill, shortUrl, updateSharedBill } from "../backend";
 import { Avatar, Button, Card, Icon } from "../ui";
@@ -107,7 +108,7 @@ export function ResultsScreen({
 
   // Native prompt floats above the keyboard, so it can't bury the field.
   const openPhone = (p: Person) => {
-    Alert.prompt(
+    promptText(
       p.phone ? `${p.name}'s phone` : `Add ${p.name}'s phone`,
       "Used to text total amounts.",
       [

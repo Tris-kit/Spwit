@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import {
   LayoutAnimation,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -142,7 +143,9 @@ export function ContactsScreen({
 
       <View style={styles.actions}>
         <Button title="Add Manually" onPress={openNew} variant="secondary" style={{ flex: 1 }} />
-        <Button title="Import from Contacts" onPress={importFromContacts} style={{ flex: 1 }} />
+        {Platform.OS !== "web" && (
+          <Button title="Import from Contacts" onPress={importFromContacts} style={{ flex: 1 }} />
+        )}
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}>
