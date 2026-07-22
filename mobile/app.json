@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "Tabby",
+    "slug": "snapsplit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tristan.snapsplit"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +21,22 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      ["expo-build-properties", { "ios": { "deploymentTarget": "16.0" } }],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SnapSplit uses your photos to read a receipt.",
+          "cameraPermission": "SnapSplit uses the camera to scan a receipt."
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "SnapSplit uses your contacts so you can quickly add people to a split."
+        }
+      ]
+    ]
   }
 }
