@@ -49,8 +49,8 @@ export function BillView({
             const isUnpaid = unpaidSet.has(pb.person.id);
             // The owner is owed, not paying — everyone else gets a pay link.
             const canPay = !pb.person.isMe && (ownerVenmo || ownerZelle);
-            // Venmo note: "<event> — <who's paying>", or just the name if unnamed.
-            const payNote = eventName ? `${eventName} — ${pb.person.name}` : pb.person.name;
+            // Venmo note: "<bill> with <owner> - <sender>" (bill falls back to "Meal").
+            const payNote = `${eventName || "Meal"}${ownerName ? ` with ${ownerName}` : ""} - ${pb.person.name}`;
             return (
               <div key={pb.person.id} style={styles.card}>
                 <div style={styles.cardHead}>
