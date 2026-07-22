@@ -2,11 +2,12 @@
 // per-person breakdown; "Open" reopens the bill's final screen to tweak or
 // re-send the text blast.
 import React, { useRef, useState } from "react";
-import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, LayoutAnimation, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Person, SavedReceipt } from "../types";
 import { computeBreakdown, toDollars } from "../split";
 import { Avatar, Button, Card, Icon, SwipeRow, SwipeRowHandle } from "../ui";
-import { colors, spacing } from "../theme";
+import { canShareBreakdown, shareBreakdown } from "../shareLink";
+import { colors, radius, spacing } from "../theme";
 
 function formatDate(iso: string): string {
   try {
@@ -40,6 +41,7 @@ export function HistoryScreen({
   onBack: () => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, SwipeRowHandle | null>>({});
 
   // Resolve a bill participant to their live profile/contact (so an updated photo
@@ -79,6 +81,7 @@ export function HistoryScreen({
               (pb) => !pb.person.isMe && unpaid.includes(pb.person.id),
             );
             const dueCents = owedPeople.reduce((s, pb) => s + pb.totalCents, 0);
+            const hasOthers = breakdown.perPerson.some((pb) => !pb.person.isMe);
             const toggle = (pid: string) => {
               const next = unpaid.includes(pid)
                 ? unpaid.filter((x) => x !== pid)
@@ -130,6 +133,14 @@ export function HistoryScreen({
 
                   {open && (
                     <View style={styles.detail}>
+                      {hasOthers && (
+                        <View style={styles.colHeaderRow}>
+                          <View style={{ width: 26 }} />
+                          <Text style={[styles.colHeader, { flex: 1 }]}>Person</Text>
+                          <Text style={[styles.colHeader, styles.amountCol]}>Amount</Text>
+                          <Text style={[styles.colHeader, styles.colPaid]}>Paid</Text>
+                        </View>
+                      )}
                       {breakdown.perPerson
                         .slice()
                         .sort((a, b) => b.totalCents - a.totalCents)
@@ -146,26 +157,43 @@ export function HistoryScreen({
                                 size={26}
                               />
                               <Text style={styles.personName}>{lp.name}</Text>
-                              <Text style={styles.personTotal}>${toDollars(pb.totalCents)}</Text>
-                              {pb.person.isMe ? (
-                                <View style={styles.checkSpacer} />
-                              ) : (
-                                <Pressable
-                                  onPress={() => toggle(pb.person.id)}
-                                  hitSlop={8}
-                                  style={[styles.check, paid && styles.checkOn]}
-                                >
-                                  {paid && <Icon name="check" size={13} color="#fff" />}
-                                </Pressable>
-                              )}
+                              <Text style={[styles.personTotal, styles.amountCol]}>
+                                ${toDollars(pb.totalCents)}
+                              </Text>
+                              <View style={styles.checkCol}>
+                                {!pb.person.isMe && (
+                                  <Pressable
+                                    onPress={() => toggle(pb.person.id)}
+                                    hitSlop={8}
+                                    style={[styles.check, paid && styles.checkOn]}
+                                  >
+                                    {paid && <Icon name="check" size={13} color="#fff" />}
+                                  </Pressable>
+                                )}
+                              </View>
                             </View>
                           );
                         })}
-                      <Button
-                        title="Open bill"
-                        onPress={() => onOpen(r)}
-                        style={{ marginTop: spacing(1.5) }}
-                      />
+                      <View style={styles.actions}>
+                        {canShareBreakdown() && (
+                          <Pressable
+                            onPress={() => shareBreakdown(r.bill).catch(() => {})}
+                            hitSlop={8}
+                            style={styles.shareBtn}
+                          >
+                            <Icon name="share-2" size={20} color={colors.primary} />
+                          </Pressable>
+                        )}
+                        {r.receiptImage ? (
+                          <Button
+                            title="See receipt"
+                            variant="secondary"
+                            onPress={() => setViewingPhoto(r.receiptImage)}
+                            style={{ flex: 1 }}
+                          />
+                        ) : null}
+                        <Button title="Open bill" onPress={() => onOpen(r)} style={{ flex: 1 }} />
+                      </View>
                     </View>
                   )}
                 </Card>
@@ -174,6 +202,20 @@ export function HistoryScreen({
           })
         )}
       </ScrollView>
+
+      <Modal
+        visible={!!viewingPhoto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewingPhoto(null)}
+      >
+        <Pressable style={styles.photoWrap} onPress={() => setViewingPhoto(null)}>
+          {viewingPhoto && (
+            <Image source={{ uri: viewingPhoto }} style={styles.photoFull} resizeMode="contain" />
+          )}
+          <Text style={styles.photoClose}>Tap to close</Text>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -203,7 +245,7 @@ const styles = StyleSheet.create({
   personName: { color: colors.text, fontSize: 15, flex: 1 },
   personTotal: { color: colors.text, fontSize: 15, fontWeight: "700" },
   dueSmall: { color: colors.warning, fontSize: 13, fontWeight: "700", marginTop: 2 },
-  checkSpacer: { width: 24, height: 24 },
+  checkCol: { width: 40, alignItems: "center" },
   check: {
     width: 24,
     height: 24,
@@ -214,4 +256,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkOn: { backgroundColor: colors.success, borderColor: colors.success },
+  colHeaderRow: { flexDirection: "row", alignItems: "center", gap: spacing(1), marginBottom: spacing(0.5) },
+  colHeader: { color: colors.textDim, fontSize: 12, fontWeight: "700" },
+  colPaid: { width: 40, textAlign: "center" },
+  // Fixed width sized for "$999.99" so amounts line up, left-aligned.
+  amountCol: { width: 68, textAlign: "left" },
+  actions: { flexDirection: "row", alignItems: "stretch", gap: spacing(1), marginTop: spacing(1.5) },
+  shareBtn: {
+    width: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoWrap: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoFull: { width: "92%", height: "80%" },
+  photoClose: { color: "#fff", marginTop: spacing(2), fontSize: 15 },
 });

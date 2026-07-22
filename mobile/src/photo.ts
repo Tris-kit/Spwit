@@ -19,6 +19,49 @@ export async function persistToDocuments(uri: string, prefix = "img"): Promise<s
   }
 }
 
+// --- Durable image references ------------------------------------------------
+// iOS changes the app's container path across reinstalls and OS updates, so an
+// absolute Documents URI saved today can be invalid tomorrow (the classic
+// "photos disappeared after an update" bug). We therefore persist only the
+// basename and rebuild the absolute path against the CURRENT document directory
+// on load. (A dev reinstall also wipes the container's files entirely — that
+// loss is unavoidable; this fixes the production case where files survive.)
+
+function documentDir(): string {
+  try {
+    return require("expo-file-system/legacy").documentDirectory ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function basename(uri: string): string {
+  return uri.split("?")[0].split("/").pop() ?? uri;
+}
+
+// App-owned = a file we copied into Documents (absolute path containing
+// "/Documents/") or an already-stored bare basename. External uris (http://,
+// ph://, temp picker files) are left untouched.
+function isAppImage(uri: string): boolean {
+  return uri.includes("/Documents/") || (!uri.includes("/") && !uri.includes("://"));
+}
+
+/** Convert an in-memory image uri to its on-disk, container-independent form. */
+export function toStoredImage(uri?: string | null): string | undefined {
+  if (!uri) return undefined;
+  return isAppImage(uri) ? basename(uri) : uri;
+}
+
+/** Resolve a stored image reference to a valid uri for the current container. */
+export function fromStoredImage(stored?: string | null): string | undefined {
+  if (!stored) return undefined;
+  if (isAppImage(stored)) {
+    const dir = documentDir();
+    return dir ? `${dir}${basename(stored)}` : stored;
+  }
+  return stored;
+}
+
 export async function pickAvatarPhoto(): Promise<string | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) {

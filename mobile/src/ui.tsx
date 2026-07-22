@@ -390,13 +390,6 @@ export function Avatar({
   size?: number;
   selected?: boolean;
 }) {
-  const initials = name
-    .trim()
-    .split(/\s+/)
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
   return (
     <View
       style={{
@@ -416,9 +409,7 @@ export function Avatar({
       ) : emoji ? (
         <Text style={{ fontSize: size * 0.55 }}>{emoji}</Text>
       ) : (
-        <Text style={{ color: colors.text, fontWeight: "800", fontSize: size * 0.4 }}>
-          {initials || "?"}
-        </Text>
+        <Icon name="user" size={size * 0.5} color={colors.text} />
       )}
     </View>
   );
@@ -432,7 +423,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing(2),
   },
-  btnText: { fontSize: 17, fontWeight: "700" },
+  btnText: { fontSize: 17, fontWeight: "700", textAlign: "center" },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

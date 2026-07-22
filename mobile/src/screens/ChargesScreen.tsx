@@ -13,6 +13,7 @@ export function ChargesScreen({
   charges,
   setCharges,
   receiptImage,
+  billName,
   onBack,
   onNext,
 }: {
@@ -20,6 +21,7 @@ export function ChargesScreen({
   charges: Charges;
   setCharges: (c: Charges) => void;
   receiptImage: string | null;
+  billName: string;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -45,7 +47,10 @@ export function ChargesScreen({
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}>
         <View style={styles.headerRow}>
-          <Text style={styles.h1}>Tax & Tip</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h1}>Tax & Tip</Text>
+            {billName.trim() ? <Text style={styles.subtitle}>{billName.trim()}</Text> : null}
+          </View>
           {receiptImage && (
             <Pressable onPress={() => setViewingPhoto(true)} hitSlop={8} style={styles.viewPhotoBtn}>
               <Icon name="file-text" size={14} color={colors.primary} />
@@ -147,6 +152,7 @@ const styles = StyleSheet.create({
   photoFull: { width: "92%", height: "80%" },
   photoClose: { color: "#fff", marginTop: spacing(2), fontSize: 15 },
   h1: { color: colors.text, fontSize: 28, fontWeight: "800" },
+  subtitle: { color: colors.textDim, fontSize: 15, fontWeight: "600", marginTop: 2 },
   h2: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: spacing(2.5), marginBottom: spacing(1) },
   hint: { color: colors.textDim, fontSize: 13 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing(0.75) },

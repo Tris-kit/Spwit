@@ -1,8 +1,7 @@
 // Saved contacts: everyone you've added to past splits, plus people you add
 // manually or import from your iPhone address book. View, edit, or delete them.
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
-  Alert,
   LayoutAnimation,
   Modal,
   Pressable,
@@ -14,7 +13,16 @@ import {
 import { Person, SavedReceipt } from "../types";
 import { pickContact } from "../contacts";
 import { computeBreakdown, toDollars } from "../split";
-import { Avatar, AvatarNameRow, AvatarStyleControls, Button, Card, Field } from "../ui";
+import {
+  Avatar,
+  AvatarNameRow,
+  AvatarStyleControls,
+  Button,
+  Card,
+  Field,
+  SwipeRow,
+  SwipeRowHandle,
+} from "../ui";
 import { colors, personColors, radius, spacing } from "../theme";
 
 function formatDate(iso: string): string {
@@ -65,6 +73,7 @@ export function ContactsScreen({
       });
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, SwipeRowHandle | null>>({});
   const [editing, setEditing] = useState<Person | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -129,7 +138,7 @@ export function ContactsScreen({
       </View>
 
       <View style={styles.actions}>
-        <Button title="Add manually" onPress={openNew} variant="secondary" style={{ flex: 1 }} />
+        <Button title="Add Manually" onPress={openNew} variant="secondary" style={{ flex: 1 }} />
         <Button title="Import from Contacts" onPress={importFromContacts} style={{ flex: 1 }} />
       </View>
 
@@ -143,54 +152,74 @@ export function ContactsScreen({
           contacts.map((p) => {
             const bills = billsFor(p);
             const open = expandedId === p.id;
+            // Sum of their still-unpaid shares across all bills — what they owe me.
+            const owedCents = bills.reduce((s, b) => s + (b.owes ? b.shareCents : 0), 0);
             return (
-              <Card key={p.id} style={{ marginBottom: spacing(1.5) }}>
-                <View style={styles.row}>
-                  <Pressable
-                    onPress={() => {
-                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                      setExpandedId(open ? null : p.id);
-                    }}
-                    style={styles.rowMain}
-                  >
-                    <Avatar name={p.name} color={p.color} emoji={p.emoji} photo={p.photo} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.name}>{p.name}</Text>
-                      <Text style={styles.phone}>
-                        {p.phone || "No phone"}
-                        {bills.length > 0 ? `  ·  ${bills.length} split${bills.length === 1 ? "" : "s"}` : ""}
-                      </Text>
-                    </View>
-                    <Text style={styles.chevron}>{open ? "▾" : "▸"}</Text>
-                  </Pressable>
-                </View>
-
-                {open && (
-                  <View style={styles.detail}>
-                    {bills.length === 0 ? (
-                      <Text style={styles.noBills}>No splits with {p.name.split(" ")[0]} yet.</Text>
-                    ) : (
-                      bills.map(({ r, shareCents, owes }) => (
-                        <View key={r.id} style={styles.billRow}>
-                          <Text style={styles.billDate} numberOfLines={1}>
-                            {r.bill.name || formatDate(r.dateISO)}
-                          </Text>
-                          {owes && <Text style={styles.billDue}>due</Text>}
-                          <Text style={styles.billShare}>${toDollars(shareCents)}</Text>
-                        </View>
-                      ))
-                    )}
-                    <View style={styles.detailActions}>
-                      <Pressable onPress={() => openEdit(p)} hitSlop={6}>
-                        <Text style={styles.editLink}>Edit contact</Text>
-                      </Pressable>
-                      <Pressable onPress={() => confirmDelete(p, onDelete)} hitSlop={6}>
-                        <Text style={styles.delete}>Delete</Text>
-                      </Pressable>
-                    </View>
+              <SwipeRow
+                key={p.id}
+                ref={(el) => {
+                  rowRefs.current[p.id] = el;
+                }}
+                onDelete={() => onDelete(p.id)}
+                onOpen={() => {
+                  // Swiping open while expanded → collapse.
+                  if (open) {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setExpandedId(null);
+                  }
+                }}
+                style={{ marginBottom: spacing(1.5) }}
+              >
+                <Card>
+                  <View style={styles.row}>
+                    <Pressable
+                      onPress={() => {
+                        // Expanding while swiped open → close the delete.
+                        rowRefs.current[p.id]?.close();
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        setExpandedId(open ? null : p.id);
+                      }}
+                      style={styles.rowMain}
+                    >
+                      <Avatar name={p.name} color={p.color} emoji={p.emoji} photo={p.photo} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.name}>{p.name}</Text>
+                        <Text style={styles.phone}>
+                          {p.phone || "No phone"}
+                          {bills.length > 0 ? `  ·  ${bills.length} split${bills.length === 1 ? "" : "s"}` : ""}
+                        </Text>
+                        {owedCents > 0 && (
+                          <Text style={styles.owes}>Owes you ${toDollars(owedCents)}</Text>
+                        )}
+                      </View>
+                      <Text style={styles.chevron}>{open ? "▾" : "▸"}</Text>
+                    </Pressable>
                   </View>
-                )}
-              </Card>
+
+                  {open && (
+                    <View style={styles.detail}>
+                      {bills.length === 0 ? (
+                        <Text style={styles.noBills}>No splits with {p.name.split(" ")[0]} yet.</Text>
+                      ) : (
+                        bills.map(({ r, shareCents, owes }) => (
+                          <View key={r.id} style={styles.billRow}>
+                            <Text style={styles.billDate} numberOfLines={1}>
+                              {r.bill.name || formatDate(r.dateISO)}
+                            </Text>
+                            {owes && <Text style={styles.billDue}>due</Text>}
+                            <Text style={styles.billShare}>${toDollars(shareCents)}</Text>
+                          </View>
+                        ))
+                      )}
+                      <View style={styles.detailActions}>
+                        <Pressable onPress={() => openEdit(p)} hitSlop={6}>
+                          <Text style={styles.editLink}>Edit contact</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+                </Card>
+              </SwipeRow>
             );
           })
         )}
@@ -235,13 +264,6 @@ export function ContactsScreen({
   );
 }
 
-function confirmDelete(p: Person, onDelete: (id: string) => void) {
-  Alert.alert("Delete contact", `Remove ${p.name} from your saved contacts?`, [
-    { text: "Cancel", style: "cancel" },
-    { text: "Delete", style: "destructive", onPress: () => onDelete(p.id) },
-  ]);
-}
-
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
@@ -257,6 +279,7 @@ const styles = StyleSheet.create({
   rowMain: { flexDirection: "row", alignItems: "center", gap: spacing(1.5), flex: 1 },
   name: { color: colors.text, fontSize: 17, fontWeight: "700" },
   phone: { color: colors.textDim, fontSize: 13, marginTop: 2 },
+  owes: { color: colors.warning, fontSize: 13, fontWeight: "700", marginTop: 2 },
   chevron: { color: colors.textDim, fontSize: 16, width: 18, textAlign: "right" },
   delete: { color: colors.danger, fontSize: 14, fontWeight: "600" },
   detail: {

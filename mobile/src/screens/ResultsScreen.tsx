@@ -15,6 +15,7 @@ import {
 import { Bill, Person } from "../types";
 import { computeBreakdown, toDollars } from "../split";
 import { sendGroupText } from "../sms";
+import { canShareBreakdown, shareBreakdown } from "../shareLink";
 import { Avatar, Button, Card, Icon } from "../ui";
 import { colors, radius, spacing } from "../theme";
 
@@ -43,7 +44,7 @@ export function ResultsScreen({
   const openPhone = (p: Person) => {
     Alert.prompt(
       p.phone ? `${p.name}'s phone` : `Add ${p.name}'s phone`,
-      "Used to text them their total.",
+      "Used to text total amounts.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -76,6 +77,8 @@ export function ResultsScreen({
     const recipients = bill.people
       .filter((p) => !p.isMe && p.phone)
       .map((p) => p.phone as string);
+    const missing = bill.people.filter((p) => !p.isMe && !p.phone);
+
     if (recipients.length === 0) {
       Alert.alert(
         "No phone numbers",
@@ -83,18 +86,39 @@ export function ResultsScreen({
       );
       return;
     }
-    if (!me.venmo && !me.zelle) {
+
+    // Continue to the payment-method check, then send.
+    const proceed = () => {
+      if (!me.venmo && !me.zelle) {
+        Alert.alert(
+          "No payment method",
+          "Add your Venmo or Zelle in your profile so people know how to pay you.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Text without it", onPress: () => sendGroupText(recipients, buildBody()) },
+          ],
+        );
+        return;
+      }
+      sendGroupText(recipients, buildBody());
+    };
+
+    // Warn about anyone who'll be left out because they have no phone number.
+    if (missing.length > 0) {
+      const names = missing.map((p) => p.name).join(", ");
+      const verb = missing.length === 1 ? "doesn't have a phone number" : "don't have phone numbers";
       Alert.alert(
-        "No payment method",
-        "Add your Venmo or Zelle in your profile so people know how to pay you.",
+        "Missing phone numbers",
+        `${names} ${verb} and won't get a text. Add their number first, or text everyone else?`,
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Text without it", onPress: () => sendGroupText(recipients, buildBody()) },
+          { text: "Text the rest", onPress: proceed },
         ],
       );
       return;
     }
-    sendGroupText(recipients, buildBody());
+
+    proceed();
   };
 
   return (
@@ -104,7 +128,7 @@ export function ResultsScreen({
       >
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.h1}>The Breakdown</Text>
+            <Text style={styles.h1}>Breakdown</Text>
             {bill.name ? <Text style={styles.subName}>{bill.name}</Text> : null}
           </View>
           {receiptImage && (
@@ -204,11 +228,20 @@ export function ResultsScreen({
       <View style={styles.footer}>
         <Button title="Text everyone their total" onPress={textEveryone} />
         <View style={styles.footerLinks}>
-          <Pressable onPress={onEdit} hitSlop={8} style={styles.footerLinkRow}>
+          <Pressable onPress={onEdit} hitSlop={8} style={[styles.footerLinkRow, styles.linkLeft]}>
             <Icon name="edit-2" size={14} color={colors.primary} />
             <Text style={styles.footerLink}>Edit bill</Text>
           </Pressable>
-          <Pressable onPress={onRestart} hitSlop={8}>
+          {canShareBreakdown() && (
+            <Pressable
+              onPress={() => shareBreakdown(bill).catch(() => {})}
+              hitSlop={12}
+              style={styles.linkCenter}
+            >
+              <Icon name="share-2" size={20} color={colors.primary} />
+            </Pressable>
+          )}
+          <Pressable onPress={onRestart} hitSlop={8} style={styles.linkRight}>
             <Text style={styles.footerLink}>{fromHistory ? "Done" : "New split"}</Text>
           </Pressable>
         </View>
@@ -345,11 +378,13 @@ const styles = StyleSheet.create({
   },
   footerLinks: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginTop: spacing(1.5),
+    marginTop: spacing(3),
     paddingHorizontal: spacing(0.5),
   },
+  linkLeft: { flex: 1 },
+  linkCenter: { paddingHorizontal: spacing(1) },
+  linkRight: { flex: 1, alignItems: "flex-end" },
   footerLinkRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   footerLink: { color: colors.primary, fontSize: 14, fontWeight: "600" },
   modalWrap: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },

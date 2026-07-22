@@ -1,24 +1,19 @@
 // Your profile: name, phone, Venmo, Zelle, and avatar (photo / emoji / color).
 // Used to prefill "me" on every bill and to build the payment lines in texts.
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Person } from "../types";
-import { AvatarNameRow, AvatarStyleControls, Button, Field } from "../ui";
-import { colors, personColors, radius, spacing } from "../theme";
-import { getApiKey, getOcrMode, OcrMode, setOcrMode } from "../apiKey";
-import { promptForKey } from "../scan";
-import { BackendStatus } from "../backend";
+import { AvatarNameRow, AvatarStyleControls, Field } from "../ui";
+import { colors, personColors, spacing } from "../theme";
 
 export function ProfileScreen({
   me,
   onSave,
   onBack,
-  backendStatus,
 }: {
   me: Person;
   onSave: (p: Person) => void;
   onBack: () => void;
-  backendStatus: BackendStatus;
 }) {
   const [name, setName] = useState(me.name);
   const [phone, setPhone] = useState(me.phone ?? "");
@@ -27,40 +22,6 @@ export function ProfileScreen({
   const [emoji, setEmoji] = useState(me.emoji ?? "");
   const [color, setColor] = useState(me.color || personColors[0]);
   const [photo, setPhoto] = useState(me.photo);
-
-  // Receipt-scanning source: Tabby's backend vs the user's own on-device key.
-  const [ocrMode, setOcrModeState] = useState<OcrMode>("backend");
-  const [keySaved, setKeySaved] = useState(false);
-  const backendDisabled = backendStatus === "disabled";
-
-  useEffect(() => {
-    getOcrMode().then(setOcrModeState);
-    getApiKey("gemini").then((k) => setKeySaved(!!k));
-  }, []);
-
-  const chooseMode = (mode: OcrMode) => {
-    if (mode === "backend" && backendDisabled) return;
-    setOcrModeState(mode);
-    setOcrMode(mode);
-  };
-
-  const editKey = async () => {
-    const key = await promptForKey("gemini");
-    if (key) setKeySaved(true);
-  };
-
-  const backendHint =
-    backendStatus === "checking"
-      ? "Checking backend…"
-      : backendStatus === "online"
-        ? "Scans run on Tabby's server — no API key needed."
-        : backendStatus === "offline"
-          ? "Backend unreachable — scans fall back to your own key."
-          : "Not configured in this build.";
-
-  const deviceHint = keySaved
-    ? "Using your Gemini key stored on this device."
-    : "You'll be asked for a Gemini key on your first scan.";
 
   // Auto-save whatever's entered, then leave (invoked from the back button).
   const saveAndBack = () => {
@@ -139,43 +100,6 @@ export function ProfileScreen({
           photo={photo}
           onRemovePhoto={() => setPhoto(undefined)}
         />
-
-        <View style={styles.divider} />
-
-        <Text style={styles.section}>Receipt scanning</Text>
-        <View style={styles.segment}>
-          <Pressable
-            onPress={() => chooseMode("backend")}
-            disabled={backendDisabled}
-            style={[
-              styles.segBtn,
-              ocrMode === "backend" && styles.segBtnOn,
-              backendDisabled && styles.segBtnDisabled,
-            ]}
-          >
-            <Text style={[styles.segText, ocrMode === "backend" && styles.segTextOn]}>
-              Tabby cloud
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => chooseMode("device")}
-            style={[styles.segBtn, ocrMode === "device" && styles.segBtnOn]}
-          >
-            <Text style={[styles.segText, ocrMode === "device" && styles.segTextOn]}>
-              My own key
-            </Text>
-          </Pressable>
-        </View>
-        <Text style={styles.hint}>{ocrMode === "backend" ? backendHint : deviceHint}</Text>
-
-        {ocrMode === "device" && (
-          <Button
-            title={keySaved ? "Replace Gemini key" : "Set Gemini key"}
-            variant="secondary"
-            onPress={editKey}
-            style={{ marginTop: spacing(1.5) }}
-          />
-        )}
       </ScrollView>
     </View>
   );
@@ -194,29 +118,4 @@ const styles = StyleSheet.create({
   label: { color: colors.textDim, fontSize: 14, marginTop: spacing(2), marginBottom: spacing(0.5) },
   at: { color: colors.textDim, fontSize: 18, marginRight: spacing(1) },
   hint: { color: colors.textDim, fontSize: 12, marginTop: spacing(0.5) },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginTop: spacing(3),
-    marginBottom: spacing(1),
-  },
-  section: { color: colors.text, fontSize: 16, fontWeight: "800", marginBottom: spacing(1) },
-  segment: {
-    flexDirection: "row",
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    padding: 4,
-    gap: 4,
-  },
-  segBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  segBtnOn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  segBtnDisabled: { opacity: 0.4 },
-  segText: { color: colors.textDim, fontSize: 15, fontWeight: "700" },
-  segTextOn: { color: colors.text },
 });
