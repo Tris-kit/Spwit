@@ -31,7 +31,7 @@ export default function ViewPage() {
   return (
     <main style={msg.page}>
       <div style={msg.box}>
-        <div style={msg.brand}>Tabby</div>
+        <div style={msg.brand}>Spwit</div>
         <p style={msg.text}>
           {state.status === "loading"
             ? "Loading split…"

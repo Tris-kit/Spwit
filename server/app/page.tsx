@@ -23,7 +23,7 @@ export default function Home() {
             fontSize: 14,
           }}
         >
-          Tabby
+          Spwit
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 800, margin: "8px 0" }}>
           Split the tab, settle up.

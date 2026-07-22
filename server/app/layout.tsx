@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tabby",
+  title: "Spwit",
   description: "Split the tab, settle up.",
 };
 

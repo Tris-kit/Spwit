@@ -1,8 +1,8 @@
 {
-  "name": "tabby-backend",
+  "name": "spwit-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Tabby backend — OCR proxy + shareable bill links (Next.js on Vercel).",
+  "description": "Spwit backend — OCR proxy + shareable bill links (Next.js on Vercel).",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -29,7 +29,7 @@ export function BillView({
     <main style={styles.page}>
       <div style={styles.container}>
         <header style={styles.header}>
-          <div style={styles.brand}>Tabby</div>
+          <div style={styles.brand}>Spwit</div>
           <h1 style={styles.title}>{bill.name?.trim() || "Your split"}</h1>
           <div style={styles.subtitle}>
             {money(breakdown.grandTotalCents)} · {bill.people.length}{" "}
@@ -133,14 +133,14 @@ export function BillView({
 
         <footer style={styles.footer}>
           <a
-            href={venmoLink("tristan-schwichow", 500, "Coffee for the Tabby dev ☕")}
+            href={venmoLink("tristan-schwichow", 500, "Coffee for the Spwit dev ☕")}
             target="_blank"
             rel="noreferrer"
             style={styles.coffee}
           >
             ☕ Buy me a coffee ($5)
           </a>
-          <div style={styles.footerNote}>Split with Tabby</div>
+          <div style={styles.footerNote}>Split with Spwit</div>
         </footer>
       </div>
     </main>

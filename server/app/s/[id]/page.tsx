@@ -20,11 +20,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const stored = await getBill(id);
-  if (!stored) return { title: "Tabby" };
+  if (!stored) return { title: "Spwit" };
   const name = stored.bill.name?.trim();
   const total = computeBreakdown(stored.bill).grandTotalCents;
   return {
-    title: name ? `${name} · Tabby` : "Your split · Tabby",
+    title: name ? `${name} · Spwit` : "Your split · Spwit",
     description: `Total ${money(total)} · split ${stored.bill.people.length} ways`,
   };
 }

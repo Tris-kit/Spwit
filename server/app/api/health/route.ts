@@ -16,7 +16,7 @@ export function OPTIONS() {
 export function GET() {
   return json({
     ok: true,
-    service: "tabby-backend",
+    service: "spwit-backend",
     ocr: Boolean(process.env.GEMINI_API_KEY),
     storage: isDbConfigured(),
   });

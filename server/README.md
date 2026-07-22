@@ -1,4 +1,4 @@
-# Tabby backend
+# Spwit backend
 
 Next.js (App Router) service deployed on **Vercel**. Two jobs:
 
@@ -40,7 +40,7 @@ land later, that's when Postgres earns its place.
 ### `GET /api/health`
 ```jsonc
 // 200
-{ "ok": true, "service": "tabby-backend", "ocr": true, "storage": true }
+{ "ok": true, "service": "spwit-backend", "ocr": true, "storage": true }
 ```
 `ocr`/`storage` report whether the Gemini and Upstash env vars are set (booleans
 only — no secret values). The app pings this on startup.
@@ -84,7 +84,7 @@ The human-facing share page.
 ## Local development
 
 ```bash
-cd Tabby-Backend
+cd Spwit-Backend
 npm install
 cp .env.example .env.local   # fill in the three secrets
 npm run dev                  # http://localhost:3000
@@ -124,4 +124,4 @@ Point the Expo app at the deployment (e.g. `EXPO_PUBLIC_API_BASE`) and call
 `POST /api/ocr` instead of the on-device Gemini path, and `POST /api/bills`
 from the results screen's share action. The device keeps its local history as-is;
 the backend only holds the copies you explicitly share. The app repo
-(`Tris-kit/Tabby`) ships a ready-made client at `src/backend.ts`.
+(`Tris-kit/Spwit-App`) ships a ready-made client at `src/backend.ts`.
