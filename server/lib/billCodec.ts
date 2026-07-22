@@ -1,33 +1,34 @@
 // DB-free bill sharing: the whole bill (minus the photo and private phone
-// numbers) is base64url-encoded into the /v link's hash fragment, so no server
-// storage is needed. Keep encode/decode in sync with the app's src/shareLink.ts.
+// numbers) is deflate-compressed and base64url-encoded into the /v link's hash
+// fragment, so no server storage is needed. Compression keeps even large
+// (20-person) bills to ~1KB. Keep in sync with the app's src/shareLink.ts.
 
+import { deflateRaw, inflateRaw } from "pako";
 import { Bill } from "./types";
 
-// UTF-8-safe base64 using only btoa/atob + encodeURIComponent — works in the
-// browser and in React Native (Hermes). Handles emoji/unicode in names.
-function b64EncodeUtf8(str: string): string {
-  const bin = encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, h) =>
-    String.fromCharCode(parseInt(h, 16)),
-  );
+// Base64 of raw bytes (btoa/atob exist in the browser and React Native/Hermes).
+function bytesToB64(bytes: Uint8Array): string {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
   return btoa(bin);
 }
 
-function b64DecodeUtf8(b64: string): string {
+function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
-  let pct = "";
-  for (let i = 0; i < bin.length; i++) {
-    pct += "%" + ("00" + bin.charCodeAt(i).toString(16)).slice(-2);
-  }
-  return decodeURIComponent(pct);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
 }
 
 const toUrlSafe = (b64: string) =>
   b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const fromUrlSafe = (s: string) => s.replace(/-/g, "+").replace(/_/g, "/");
 
-// Only the fields the breakdown needs to render. Photo, phone, and contactId are
-// dropped (photo is too big for a URL; phone is private).
+// Only the fields the breakdown needs. Photo, phone, and contactId are dropped
+// (photo is too big for a URL; phone is private).
 function compact(bill: Bill): Bill {
   return {
     name: bill.name,
@@ -47,12 +48,14 @@ function compact(bill: Bill): Bill {
 }
 
 export function encodeBill(bill: Bill): string {
-  return toUrlSafe(b64EncodeUtf8(JSON.stringify(compact(bill))));
+  const json = JSON.stringify(compact(bill));
+  return toUrlSafe(bytesToB64(deflateRaw(json)));
 }
 
 export function decodeBill(encoded: string): Bill | null {
   try {
-    const bill = JSON.parse(b64DecodeUtf8(fromUrlSafe(encoded)));
+    const json = inflateRaw(b64ToBytes(fromUrlSafe(encoded)), { to: "string" });
+    const bill = JSON.parse(json);
     if (!bill || !Array.isArray(bill.people) || !Array.isArray(bill.items)) return null;
     if (!bill.charges || typeof bill.charges !== "object") return null;
     return bill as Bill;
