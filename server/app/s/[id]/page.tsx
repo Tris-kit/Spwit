@@ -1,0 +1,271 @@
+// Public share page: /s/:id — a server-rendered breakdown of a split, viewable
+// by anyone with the link (no app, no account). Reads straight from the store
+// and computes per-person totals with the same logic as the app.
+
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { getBill } from "@/lib/store";
+import { computeBreakdown } from "@/lib/split";
+import { money, avatarLabel, venmoLink } from "@/lib/format";
+
+export const runtime = "nodejs";
+// Bills change when the owner edits them; don't cache the page HTML.
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const stored = await getBill(id);
+  if (!stored) return { title: "Tabby" };
+  const name = stored.bill.name?.trim();
+  const total = computeBreakdown(stored.bill).grandTotalCents;
+  return {
+    title: name ? `${name} · Tabby` : "Your split · Tabby",
+    description: `Total ${money(total)} · split ${stored.bill.people.length} ways`,
+  };
+}
+
+export default async function SharePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const stored = await getBill(id);
+  if (!stored) notFound();
+
+  const { bill, unpaid, receiptImageUrl } = stored;
+  const breakdown = computeBreakdown(bill);
+  const unpaidSet = new Set(unpaid ?? []);
+
+  return (
+    <main style={styles.page}>
+      <div style={styles.container}>
+        <header style={styles.header}>
+          <div style={styles.brand}>Tabby</div>
+          <h1 style={styles.title}>{bill.name?.trim() || "Your split"}</h1>
+          <div style={styles.subtitle}>
+            {money(breakdown.grandTotalCents)} · {bill.people.length}{" "}
+            {bill.people.length === 1 ? "person" : "people"}
+          </div>
+        </header>
+
+        {breakdown.unassignedItems.length > 0 && (
+          <div style={styles.warning}>
+            {breakdown.unassignedItems.length} item
+            {breakdown.unassignedItems.length === 1 ? "" : "s"} not yet assigned to anyone.
+          </div>
+        )}
+
+        <section style={styles.cards}>
+          {breakdown.perPerson.map((pb) => {
+            const isUnpaid = unpaidSet.has(pb.person.id);
+            const venmo = pb.person.venmo?.trim();
+            const zelle = pb.person.zelle?.trim();
+            const note = bill.name?.trim() || "Tabby split";
+            return (
+              <div key={pb.person.id} style={styles.card}>
+                <div style={styles.cardHead}>
+                  <div style={{ ...styles.avatar, background: pb.person.color || "#FDBA8C" }}>
+                    {avatarLabel(pb.person)}
+                  </div>
+                  <div style={styles.who}>
+                    <div style={styles.name}>
+                      {pb.person.name}
+                      {pb.person.isMe ? " (you)" : ""}
+                    </div>
+                    {unpaid !== undefined && (
+                      <div style={isUnpaid ? styles.badgeUnpaid : styles.badgePaid}>
+                        {isUnpaid ? "Unpaid" : "Paid"}
+                      </div>
+                    )}
+                  </div>
+                  <div style={styles.amount}>{money(pb.totalCents)}</div>
+                </div>
+
+                <ul style={styles.lines}>
+                  {pb.lines.map((l, i) => (
+                    <li key={i} style={styles.line}>
+                      <span style={styles.lineName}>
+                        {l.item.name}
+                        {l.sharedWith > 1 ? (
+                          <span style={styles.shared}> · split {l.sharedWith} ways</span>
+                        ) : null}
+                      </span>
+                      <span style={styles.lineAmt}>{money(l.shareCents)}</span>
+                    </li>
+                  ))}
+                  <li style={{ ...styles.line, ...styles.lineMuted }}>
+                    <span>Tax</span>
+                    <span>{money(pb.taxCents)}</span>
+                  </li>
+                  <li style={{ ...styles.line, ...styles.lineMuted }}>
+                    <span>Tip</span>
+                    <span>{money(pb.tipCents)}</span>
+                  </li>
+                </ul>
+
+                {(venmo || zelle) && (
+                  <div style={styles.pay}>
+                    {venmo && (
+                      <a
+                        style={styles.payBtn}
+                        href={venmoLink(venmo, pb.totalCents, note)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Pay @{venmo.replace(/^@/, "")} on Venmo
+                      </a>
+                    )}
+                    {zelle && <div style={styles.zelle}>Zelle: {zelle}</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </section>
+
+        <section style={styles.totals}>
+          <Row label="Subtotal" value={money(breakdown.subtotalCents)} />
+          <Row label="Tax" value={money(breakdown.taxCents)} />
+          <Row label="Tip" value={money(breakdown.tipCents)} />
+          <Row label="Total" value={money(breakdown.grandTotalCents)} strong />
+        </section>
+
+        {receiptImageUrl && (
+          <section style={styles.receiptWrap}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={receiptImageUrl} alt="Receipt" style={styles.receipt} />
+          </section>
+        )}
+
+        <footer style={styles.footer}>Split with Tabby</footer>
+      </div>
+    </main>
+  );
+}
+
+function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div style={{ ...styles.totalRow, ...(strong ? styles.totalRowStrong : {}) }}>
+      <span>{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  page: { minHeight: "100vh", padding: "24px 16px 48px" },
+  container: { maxWidth: 560, margin: "0 auto" },
+  header: { textAlign: "center", marginBottom: 20 },
+  brand: {
+    color: "var(--primary)",
+    fontWeight: 800,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    fontSize: 13,
+  },
+  title: { fontSize: 26, fontWeight: 800, margin: "6px 0 4px" },
+  subtitle: { color: "var(--text-dim)", fontSize: 15 },
+  warning: {
+    background: "var(--warning-tint)",
+    color: "var(--warning)",
+    border: "1px solid #f5d9b0",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  cards: { display: "flex", flexDirection: "column", gap: 12 },
+  card: {
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: 18,
+    padding: 16,
+  },
+  cardHead: { display: "flex", alignItems: "center", gap: 12 },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 700,
+    color: "#26190f",
+    fontSize: 16,
+    flexShrink: 0,
+  },
+  who: { flex: 1, minWidth: 0 },
+  name: { fontWeight: 700, fontSize: 16 },
+  amount: { fontWeight: 800, fontSize: 18 },
+  badgeUnpaid: {
+    display: "inline-block",
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: 700,
+    color: "var(--warning)",
+  },
+  badgePaid: {
+    display: "inline-block",
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: 700,
+    color: "var(--success)",
+  },
+  lines: { listStyle: "none", padding: 0, margin: "12px 0 0" },
+  line: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: 14,
+    padding: "4px 0",
+  },
+  lineMuted: { color: "var(--text-dim)" },
+  lineName: { paddingRight: 12 },
+  lineAmt: { fontVariantNumeric: "tabular-nums" },
+  shared: { color: "var(--text-dim)", fontSize: 13 },
+  pay: { marginTop: 14, display: "flex", flexDirection: "column", gap: 8 },
+  payBtn: {
+    display: "block",
+    textAlign: "center",
+    background: "var(--primary)",
+    color: "#fff",
+    fontWeight: 700,
+    padding: "10px 14px",
+    borderRadius: 12,
+  },
+  zelle: { color: "var(--text-dim)", fontSize: 14, textAlign: "center" },
+  totals: {
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 16,
+  },
+  totalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "4px 0",
+    color: "var(--text-dim)",
+    fontSize: 15,
+  },
+  totalRowStrong: {
+    color: "var(--text)",
+    fontWeight: 800,
+    fontSize: 18,
+    borderTop: "1px solid var(--border)",
+    marginTop: 6,
+    paddingTop: 10,
+  },
+  receiptWrap: { marginTop: 16, textAlign: "center" },
+  receipt: { maxWidth: "100%", borderRadius: 18, border: "1px solid var(--border)" },
+  footer: {
+    textAlign: "center",
+    color: "var(--text-dim)",
+    fontSize: 13,
+    marginTop: 28,
+  },
+};
