@@ -5,6 +5,7 @@
 // secrets are configured — booleans only, never the values.
 
 import { json, preflight } from "@/lib/http";
+import { isRedisConfigured } from "@/lib/redis";
 
 export const runtime = "nodejs";
 
@@ -17,8 +18,6 @@ export function GET() {
     ok: true,
     service: "tabby-backend",
     ocr: Boolean(process.env.GEMINI_API_KEY),
-    storage: Boolean(
-      process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
-    ),
+    storage: isRedisConfigured(),
   });
 }

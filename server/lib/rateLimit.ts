@@ -2,13 +2,7 @@
 // model, so a leaked endpoint shouldn't be able to run up the bill; bill
 // creation is cheaper but still worth capping against spam.
 
-import { Redis } from "@upstash/redis";
-
-let _redis: Redis | null = null;
-function redisClient(): Redis {
-  if (!_redis) _redis = Redis.fromEnv();
-  return _redis;
-}
+import { getRedis } from "./redis";
 
 export type RateLimitResult = { ok: boolean; remaining: number; resetSeconds: number };
 
@@ -24,12 +18,20 @@ export async function rateLimit(
   const bucket = Math.floor(Date.now() / 1000 / windowSeconds);
   const redisKey = `rl:${key}:${bucket}`;
 
-  const count = await redisClient().incr(redisKey);
-  if (count === 1) await redisClient().expire(redisKey, windowSeconds);
+  try {
+    const count = await getRedis().incr(redisKey);
+    if (count === 1) await getRedis().expire(redisKey, windowSeconds);
 
-  const remaining = Math.max(0, limit - count);
-  const resetSeconds = windowSeconds - (Math.floor(Date.now() / 1000) % windowSeconds);
-  return { ok: count <= limit, remaining, resetSeconds };
+    const remaining = Math.max(0, limit - count);
+    const resetSeconds = windowSeconds - (Math.floor(Date.now() / 1000) % windowSeconds);
+    return { ok: count <= limit, remaining, resetSeconds };
+  } catch (e) {
+    // Fail open: rate limiting is a safeguard, not a hard dependency. If the
+    // store is unconfigured or unreachable, don't 500 the request it guards
+    // (e.g. OCR only needs Gemini). Surfaces in logs for visibility.
+    console.error("rateLimit: store unavailable, allowing request:", e);
+    return { ok: true, remaining: limit, resetSeconds: windowSeconds };
+  }
 }
 
 /** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */
