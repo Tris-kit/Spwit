@@ -1,42 +1,68 @@
-// Shared-bill persistence on Upstash Redis (Vercel KV Marketplace integration).
-//
-// A share link is just "a blob of bill JSON behind a short id" — a KV problem,
-// not a relational one. Each bill stores an edit token so the creator (and only
-// the creator) can update it later; the token is never returned on public reads.
+// Shared-bill persistence on Turso (libSQL). Each bill is one row: the full
+// StoredBill as JSON, plus a creator-only edit token and a TTL. A share link is
+// just "a blob of JSON behind a short id" — SQLite handles that trivially.
 
-import { getRedis } from "./redis";
+import { deflateRaw, inflateRaw } from "pako";
+import { db } from "./db";
 import { StoredBill } from "./types";
 
-// Share links auto-expire so abandoned bills don't accumulate forever.
-const TTL_SECONDS = 90 * 24 * 60 * 60; // 90 days
+// Share links auto-expire (checked on read) so abandoned bills don't live forever.
+const TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
-const billKey = (id: string) => `bill:${id}`;
-const tokenKey = (id: string) => `bill:${id}:token`;
+// The bill JSON is deflate-compressed before storage (~80% smaller rows).
+function pack(stored: StoredBill): string {
+  return Buffer.from(deflateRaw(JSON.stringify(stored))).toString("base64");
+}
+function unpack(data: string): StoredBill | null {
+  try {
+    return JSON.parse(inflateRaw(Buffer.from(data, "base64"), { to: "string" })) as StoredBill;
+  } catch {
+    return null;
+  }
+}
 
 export async function saveBill(stored: StoredBill, token: string): Promise<void> {
-  await Promise.all([
-    getRedis().set(billKey(stored.id), stored, { ex: TTL_SECONDS }),
-    getRedis().set(tokenKey(stored.id), token, { ex: TTL_SECONDS }),
-  ]);
+  const c = await db();
+  await c.execute({
+    sql: "INSERT INTO bills (id, data, token, expires_at) VALUES (?, ?, ?, ?)",
+    args: [stored.id, pack(stored), token, Date.now() + TTL_MS],
+  });
 }
 
 export async function getBill(id: string): Promise<StoredBill | null> {
-  // Upstash auto-deserializes JSON values written via set(obj).
-  return (await getRedis().get<StoredBill>(billKey(id))) ?? null;
+  const c = await db();
+  const res = await c.execute({
+    sql: "SELECT data, expires_at FROM bills WHERE id = ?",
+    args: [id],
+  });
+  const row = res.rows[0];
+  if (!row) return null;
+  if (Number(row.expires_at) < Date.now()) return null; // expired
+  return unpack(String(row.data));
 }
 
-/** Constant-ish check that the caller holds the bill's edit token. */
+/** Check that the caller holds the bill's edit token. */
 export async function verifyToken(id: string, token: string): Promise<boolean> {
   if (!token) return false;
-  const stored = await getRedis().get<string>(tokenKey(id));
-  return typeof stored === "string" && stored.length > 0 && stored === token;
+  const c = await db();
+  const res = await c.execute({
+    sql: "SELECT token FROM bills WHERE id = ?",
+    args: [id],
+  });
+  const row = res.rows[0];
+  return !!row && String(row.token) === token;
 }
 
 /** Overwrite an existing bill (creator-only; call verifyToken first). */
 export async function updateBill(stored: StoredBill): Promise<void> {
-  await getRedis().set(billKey(stored.id), stored, { ex: TTL_SECONDS });
+  const c = await db();
+  await c.execute({
+    sql: "UPDATE bills SET data = ?, expires_at = ? WHERE id = ?",
+    args: [pack(stored), Date.now() + TTL_MS, stored.id],
+  });
 }
 
 export async function deleteBill(id: string): Promise<void> {
-  await Promise.all([getRedis().del(billKey(id)), getRedis().del(tokenKey(id))]);
+  const c = await db();
+  await c.execute({ sql: "DELETE FROM bills WHERE id = ?", args: [id] });
 }
