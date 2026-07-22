@@ -21,6 +21,7 @@ import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { ContactsScreen } from "./src/screens/ContactsScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
 import { colors, personColors } from "./src/theme";
+import { BackendStatus, isBackendEnabled, pingBackend } from "./src/backend";
 
 type Step =
   | "start"
@@ -55,11 +56,18 @@ export default function App() {
   const [me, setMe] = useState<Person>(defaultMe);
   const [savedProfiles, setSavedProfiles] = useState<Person[]>([]);
   const [history, setHistory] = useState<SavedReceipt[]>([]);
+  // Backend connectivity, checked once on startup and shown in Settings.
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>(
+    isBackendEnabled() ? "checking" : "disabled",
+  );
 
   useEffect(() => {
     loadMe().then(setMe);
     loadProfiles().then(setSavedProfiles);
     loadHistory().then(setHistory);
+    if (isBackendEnabled()) {
+      pingBackend().then((h) => setBackendStatus(h ? "online" : "offline"));
+    }
   }, []);
 
   const startBill = (
@@ -263,7 +271,12 @@ export default function App() {
       )}
 
       {step === "profile" && (
-        <ProfileScreen me={me} onSave={saveMeProfile} onBack={() => setStep("start")} />
+        <ProfileScreen
+          me={me}
+          onSave={saveMeProfile}
+          onBack={() => setStep("start")}
+          backendStatus={backendStatus}
+        />
       )}
 
       {step === "contacts" && (

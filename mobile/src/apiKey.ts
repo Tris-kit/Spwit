@@ -13,6 +13,28 @@ const KEYS: Record<AiProvider, string> = {
   gemini: "gemini_api_key",
 };
 const PROVIDER_PREF = "ai_provider_v1";
+const OCR_MODE_PREF = "ocr_mode_v1";
+
+// Where receipt OCR runs: "backend" (Tabby's server key, no on-device key) or
+// "device" (your own key stored in the keychain). Defaults to backend.
+export type OcrMode = "backend" | "device";
+
+export async function getOcrMode(): Promise<OcrMode> {
+  try {
+    const v = await AsyncStorage.getItem(OCR_MODE_PREF);
+    return v === "device" ? "device" : "backend";
+  } catch {
+    return "backend";
+  }
+}
+
+export async function setOcrMode(mode: OcrMode): Promise<void> {
+  try {
+    await AsyncStorage.setItem(OCR_MODE_PREF, mode);
+  } catch {
+    // best-effort
+  }
+}
 
 export const getApiKey = (provider: AiProvider) => SecureStore.getItemAsync(KEYS[provider]);
 export const setApiKey = (provider: AiProvider, value: string) =>

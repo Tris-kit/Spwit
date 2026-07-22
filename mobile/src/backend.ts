@@ -19,6 +19,34 @@ function requireBase(): string {
   return BASE;
 }
 
+// --- Health ----------------------------------------------------------------
+
+export type BackendHealth = { ok: boolean; ocr?: boolean; storage?: boolean };
+
+/** Startup connectivity state, surfaced in Settings. */
+export type BackendStatus = "disabled" | "checking" | "online" | "offline";
+
+/**
+ * Ping the backend's /api/health with a short timeout. Returns the parsed
+ * health object, or null if the backend is unset, unreachable, or slow.
+ * Called on app startup to know whether the backend is available.
+ */
+export async function pingBackend(timeoutMs = 4000): Promise<BackendHealth | null> {
+  if (!BASE) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${BASE}/api/health`, { signal: controller.signal });
+    if (!res.ok) return null;
+    const data = (await res.json()) as BackendHealth;
+    return data?.ok ? data : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${requireBase()}${path}`, {
     method: "POST",

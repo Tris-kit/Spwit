@@ -2,7 +2,8 @@
 import { Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { ParsedReceipt, recognizeReceiptGemini } from "./ocr";
-import { AiProvider, getApiKey, setApiKey } from "./apiKey";
+import { AiProvider, getApiKey, getOcrMode, setApiKey } from "./apiKey";
+import { isBackendEnabled, scanReceiptViaBackend } from "./backend";
 import { persistToDocuments } from "./photo";
 
 /** iOS prompt to paste + securely store the selected provider's key. */
@@ -53,8 +54,18 @@ export async function captureReceipt(fromCamera: boolean): Promise<string | null
   return persistToDocuments(result.assets[0].uri, "receipt");
 }
 
-/** Run receipt OCR (Gemini). Handles the API-key prompt. */
+/**
+ * Run receipt OCR. Honors the user's selected mode (Settings):
+ *   - "backend": scan via Tabby's server (no on-device key). Falls back to the
+ *     device path if the backend isn't configured in this build.
+ *   - "device":  scan with the user's own Gemini key (prompts if missing).
+ */
 export async function scanReceipt(uri: string): Promise<ParsedReceipt> {
+  const mode = await getOcrMode();
+  if (mode === "backend" && isBackendEnabled()) {
+    return scanReceiptViaBackend(uri);
+  }
+
   let key = await getApiKey("gemini");
   if (!key) key = await promptForKey("gemini");
   if (!key) throw new Error("No API key entered.");
