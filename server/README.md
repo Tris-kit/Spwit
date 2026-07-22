@@ -17,6 +17,7 @@ land later, that's when Postgres earns its place.
 .                          (repo root)
   app/
     api/
+      health/route.ts        GET   — liveness + config check (startup ping)
       ocr/route.ts           POST  — receipt image -> parsed line items
       bills/route.ts         POST  — create a share link
       bills/[id]/route.ts    GET/PATCH/DELETE — read / update / delete a bill
@@ -35,6 +36,14 @@ land later, that's when Postgres earns its place.
 ```
 
 ## Endpoints
+
+### `GET /api/health`
+```jsonc
+// 200
+{ "ok": true, "service": "tabby-backend", "ocr": true, "storage": true }
+```
+`ocr`/`storage` report whether the Gemini and Upstash env vars are set (booleans
+only — no secret values). The app pings this on startup.
 
 ### `POST /api/ocr`
 ```jsonc
