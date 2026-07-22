@@ -1,8 +1,9 @@
 // Step 4: the breakdown — what each person owes, with an itemized view. From
 // here you can fill in missing phone numbers and text everyone their total plus
 // a Venmo link to pay you.
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -16,14 +17,45 @@ import { Bill, Person } from "../types";
 import { computeBreakdown, toDollars } from "../split";
 import { sendGroupText } from "../sms";
 import { canShareBreakdown, shareBreakdown } from "../shareLink";
+import { shareBill, shortUrl, updateSharedBill } from "../backend";
 import { Avatar, Button, Card, Icon } from "../ui";
 import { colors, radius, spacing } from "../theme";
+
+// For the group text: show first names, disambiguating collisions with a last
+// initial — or the full last name if the initial also collides.
+function textNames(people: Person[]): Record<string, string> {
+  const parts = (n: string) => {
+    const t = n.trim().split(/\s+/).filter(Boolean);
+    return { first: t[0] ?? n.trim(), last: t.slice(1).join(" ") };
+  };
+  const names: Record<string, string> = {};
+  for (const p of people) {
+    const { first, last } = parts(p.name);
+    const sharesFirst = people.filter(
+      (q) => parts(q.name).first.toLowerCase() === first.toLowerCase(),
+    );
+    if (sharesFirst.length <= 1 || !last) {
+      names[p.id] = first;
+      continue;
+    }
+    const initial = last[0].toUpperCase();
+    const sharesInitial = sharesFirst.filter((q) => {
+      const ql = parts(q.name).last;
+      return !!ql && ql[0].toUpperCase() === initial;
+    });
+    names[p.id] = sharesInitial.length <= 1 ? `${first} ${initial}` : `${first} ${last}`;
+  }
+  return names;
+}
 
 export function ResultsScreen({
   bill,
   me,
   receiptImage,
   fromHistory,
+  shareId,
+  shareEditToken,
+  onShared,
   onUpdatePerson,
   onEdit,
   onRestart,
@@ -32,6 +64,9 @@ export function ResultsScreen({
   me: Person;
   receiptImage: string | null;
   fromHistory?: boolean;
+  shareId?: string;
+  shareEditToken?: string;
+  onShared?: (shareId: string, editToken: string) => void;
   onUpdatePerson: (id: string, patch: Partial<Person>) => void;
   onEdit: () => void;
   onRestart: () => void;
@@ -39,6 +74,36 @@ export function ResultsScreen({
   const breakdown = useMemo(() => computeBreakdown(bill), [bill]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(shareId ? shortUrl(shareId) : null);
+  const [sharing, setSharing] = useState(false);
+
+  // On opening the breakdown, get the short link ready: reuse the stored one (and
+  // refresh its content in the background), or create it — with a spinner on the
+  // Text/Share buttons — so we never surface the long URL.
+  useEffect(() => {
+    if (!canShareBreakdown()) return;
+    if (shareId) {
+      setShareUrl(shortUrl(shareId));
+      if (shareEditToken) updateSharedBill(shareId, shareEditToken, { bill }).catch(() => {});
+      return;
+    }
+    let cancelled = false;
+    setSharing(true);
+    shareBill(bill)
+      .then(({ id, editToken }) => {
+        if (cancelled) return;
+        setShareUrl(shortUrl(id));
+        onShared?.(id, editToken);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setSharing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Native prompt floats above the keyboard, so it can't bury the field.
   const openPhone = (p: Person) => {
@@ -58,18 +123,25 @@ export function ResultsScreen({
     );
   };
 
-  // Build one group message: everyone's total + how to pay you (Venmo/Zelle).
-  const buildBody = () => {
+  // Build one group message: each person's total, a link to the full breakdown,
+  // and how to pay you (Venmo/Zelle).
+  const buildBody = (shareUrl?: string) => {
     const owed = breakdown.perPerson
       .filter((pb) => !pb.person.isMe)
       .slice()
       .sort((a, b) => b.totalCents - a.totalCents);
-    const lines = owed.map((pb) => `${pb.person.name}: $${toDollars(pb.totalCents)}`);
-    let body = `Split summary\n${lines.join("\n")}`;
+
+    const names = textNames(owed.map((pb) => pb.person));
+    const header = bill.name?.trim() ? `Split — ${bill.name.trim()}` : "Split summary";
+    const lines = owed.map((pb) => `${names[pb.person.id]}: $${toDollars(pb.totalCents)}`);
+    let body = `${header}\n${lines.join("\n")}`;
+
     const pay: string[] = [];
     if (me.venmo) pay.push(`Venmo: https://venmo.com/u/${me.venmo.replace(/^@/, "").trim()}`);
     if (me.zelle) pay.push(`Zelle: ${me.zelle.trim()}`);
     if (pay.length) body += `\n\nPay me —\n${pay.join("\n")}`;
+
+    if (shareUrl) body += `\n\nFull breakdown: ${shareUrl}`;
     return body;
   };
 
@@ -87,7 +159,8 @@ export function ResultsScreen({
       return;
     }
 
-    // Continue to the payment-method check, then send.
+    // The short link is pre-generated when the screen opens; use it directly.
+    const send = () => sendGroupText(recipients, buildBody(shareUrl ?? undefined));
     const proceed = () => {
       if (!me.venmo && !me.zelle) {
         Alert.alert(
@@ -95,12 +168,12 @@ export function ResultsScreen({
           "Add your Venmo or Zelle in your profile so people know how to pay you.",
           [
             { text: "Cancel", style: "cancel" },
-            { text: "Text without it", onPress: () => sendGroupText(recipients, buildBody()) },
+            { text: "Text without it", onPress: send },
           ],
         );
         return;
       }
-      sendGroupText(recipients, buildBody());
+      send();
     };
 
     // Warn about anyone who'll be left out because they have no phone number.
@@ -226,7 +299,7 @@ export function ResultsScreen({
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button title="Text everyone their total" onPress={textEveryone} />
+        <Button title="Text everyone their total" onPress={textEveryone} loading={sharing} />
         <View style={styles.footerLinks}>
           <Pressable onPress={onEdit} hitSlop={8} style={[styles.footerLinkRow, styles.linkLeft]}>
             <Icon name="edit-2" size={14} color={colors.primary} />
@@ -234,11 +307,16 @@ export function ResultsScreen({
           </Pressable>
           {canShareBreakdown() && (
             <Pressable
-              onPress={() => shareBreakdown(bill).catch(() => {})}
+              onPress={() => shareBreakdown(bill, shareUrl ?? undefined).catch(() => {})}
               hitSlop={12}
               style={styles.linkCenter}
+              disabled={sharing}
             >
-              <Icon name="share-2" size={20} color={colors.primary} />
+              {sharing ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Icon name="share-2" size={20} color={colors.primary} />
+              )}
             </Pressable>
           )}
           <Pressable onPress={onRestart} hitSlop={8} style={styles.linkRight}>

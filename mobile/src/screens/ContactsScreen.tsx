@@ -20,6 +20,7 @@ import {
   Button,
   Card,
   Field,
+  Icon,
   SwipeRow,
   SwipeRowHandle,
 } from "../ui";
@@ -43,6 +44,7 @@ export function ContactsScreen({
   onAdd,
   onUpdate,
   onDelete,
+  onOpenBill,
   onBack,
 }: {
   contacts: Person[];
@@ -50,6 +52,7 @@ export function ContactsScreen({
   onAdd: (p: Person) => void;
   onUpdate: (p: Person) => void;
   onDelete: (id: string) => void;
+  onOpenBill: (billId: string) => void;
   onBack: () => void;
 }) {
   // Bills this contact was part of (by durable link, or name fallback), with the
@@ -202,13 +205,21 @@ export function ContactsScreen({
                         <Text style={styles.noBills}>No splits with {p.name.split(" ")[0]} yet.</Text>
                       ) : (
                         bills.map(({ r, shareCents, owes }) => (
-                          <View key={r.id} style={styles.billRow}>
-                            <Text style={styles.billDate} numberOfLines={1}>
-                              {r.bill.name || formatDate(r.dateISO)}
-                            </Text>
-                            {owes && <Text style={styles.billDue}>due</Text>}
+                          <Pressable
+                            key={r.id}
+                            style={styles.billRow}
+                            onPress={() => onOpenBill(r.id)}
+                            hitSlop={4}
+                          >
+                            <View style={styles.billNameWrap}>
+                              <Text style={styles.billDate} numberOfLines={1}>
+                                {r.bill.name || formatDate(r.dateISO)}
+                              </Text>
+                              <Icon name="clock" size={12} color={colors.textDim} />
+                            </View>
+                            {owes && <Text style={styles.billDue}>Owed</Text>}
                             <Text style={styles.billShare}>${toDollars(shareCents)}</Text>
-                          </View>
+                          </Pressable>
                         ))
                       )}
                       <View style={styles.detailActions}>
@@ -290,7 +301,8 @@ const styles = StyleSheet.create({
   },
   noBills: { color: colors.textDim, fontSize: 14 },
   billRow: { flexDirection: "row", alignItems: "center", gap: spacing(1), paddingVertical: spacing(0.5) },
-  billDate: { color: colors.text, fontSize: 14, flex: 1 },
+  billNameWrap: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },
+  billDate: { color: colors.text, fontSize: 14, flexShrink: 1 },
   billDue: { color: colors.warning, fontSize: 12, fontWeight: "700" },
   billShare: { color: colors.text, fontSize: 14, fontWeight: "700" },
   detailActions: {

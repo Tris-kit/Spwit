@@ -5,6 +5,7 @@
 import { deflateRaw } from "pako";
 import { Share } from "react-native";
 import { Bill } from "./types";
+import { shareBill } from "./backend";
 
 const BASE = (process.env.EXPO_PUBLIC_API_BASE ?? "").replace(/\/$/, "");
 
@@ -50,9 +51,25 @@ export function buildShareUrl(bill: Bill): string {
   return `${BASE}/v#${encodeBill(bill)}`;
 }
 
-/** Open the OS share sheet with a link to the breakdown. */
-export async function shareBreakdown(bill: Bill): Promise<void> {
-  const url = buildShareUrl(bill);
+/**
+ * Best available link: a short DB-backed link (/s/:id) when the backend is up,
+ * falling back to the self-contained /v# link otherwise (offline-durable).
+ */
+export async function bestShareUrl(bill: Bill): Promise<string> {
+  if (canShareBreakdown()) {
+    try {
+      const { url } = await shareBill(bill);
+      return url;
+    } catch {
+      // backend/DB unreachable — fall back to the self-contained link
+    }
+  }
+  return buildShareUrl(bill);
+}
+
+/** Open the OS share sheet with a link to the breakdown (uses `url` if given). */
+export async function shareBreakdown(bill: Bill, url?: string): Promise<void> {
+  const link = url ?? (await bestShareUrl(bill));
   const title = bill.name?.trim() ? `Tabby split — ${bill.name.trim()}` : "Tabby split";
-  await Share.share({ message: `${title}\n${url}`, url });
+  await Share.share({ message: `${title}\n${link}`, url: link });
 }

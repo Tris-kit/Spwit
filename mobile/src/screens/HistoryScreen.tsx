@@ -1,12 +1,13 @@
 // History of completed splits. Swipe a row left to delete it; tap to expand the
 // per-person breakdown; "Open" reopens the bill's final screen to tweak or
 // re-send the text blast.
-import React, { useRef, useState } from "react";
-import { Image, LayoutAnimation, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Image, LayoutAnimation, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Person, SavedReceipt } from "../types";
 import { computeBreakdown, toDollars } from "../split";
 import { Avatar, Button, Card, Icon, SwipeRow, SwipeRowHandle } from "../ui";
 import { canShareBreakdown, shareBreakdown } from "../shareLink";
+import { shortUrl } from "../backend";
 import { colors, radius, spacing } from "../theme";
 
 function formatDate(iso: string): string {
@@ -31,6 +32,8 @@ export function HistoryScreen({
   onUpdate,
   onDelete,
   onBack,
+  focusId,
+  onFocusHandled,
 }: {
   history: SavedReceipt[];
   me: Person;
@@ -39,10 +42,42 @@ export function HistoryScreen({
   onUpdate: (r: SavedReceipt) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
+  /** When set (e.g. navigated from Contacts), expand + scroll to this bill. */
+  focusId?: string | null;
+  onFocusHandled?: () => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, SwipeRowHandle | null>>({});
+  const scrollRef = useRef<ScrollView>(null);
+  const rowY = useRef<Record<string, number>>({});
+  const pulse = useRef(new Animated.Value(0)).current;
+  const [pulseId, setPulseId] = useState<string | null>(null);
+  const pulseColor = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["rgba(234,88,12,0)", "rgba(234,88,12,1)"], // colors.primary
+  });
+
+  // Navigated here to focus a bill (from Contacts): expand it, scroll it into
+  // view, and pulse its border once so the user can spot which one it is.
+  useEffect(() => {
+    if (!focusId) return;
+    setExpanded(focusId);
+    setPulseId(focusId);
+    const t = setTimeout(() => {
+      const y = rowY.current[focusId];
+      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+      pulse.setValue(0);
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 300, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0, duration: 700, useNativeDriver: false }),
+      ]).start(() => {
+        setPulseId(null);
+        onFocusHandled?.();
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [focusId]);
 
   // Resolve a bill participant to their live profile/contact (so an updated photo
   // shows in history), falling back to the bill's own snapshot if unlinked/deleted.
@@ -66,7 +101,7 @@ export function HistoryScreen({
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}>
         {history.length === 0 ? (
           <Text style={styles.empty}>
             No splits yet. Finished splits show up here.
@@ -89,8 +124,13 @@ export function HistoryScreen({
               onUpdate({ ...r, unpaid: next });
             };
             return (
-              <SwipeRow
+              <View
                 key={r.id}
+                onLayout={(e) => {
+                  rowY.current[r.id] = e.nativeEvent.layout.y;
+                }}
+              >
+              <SwipeRow
                 ref={(el) => {
                   rowRefs.current[r.id] = el;
                 }}
@@ -104,6 +144,12 @@ export function HistoryScreen({
                 }}
               >
                 <Card>
+                  {pulseId === r.id && (
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[styles.pulseBorder, { borderColor: pulseColor }]}
+                    />
+                  )}
                   <Pressable
                     onPress={() => {
                       // Expanding while swiped open → close the delete.
@@ -177,7 +223,11 @@ export function HistoryScreen({
                       <View style={styles.actions}>
                         {canShareBreakdown() && (
                           <Pressable
-                            onPress={() => shareBreakdown(r.bill).catch(() => {})}
+                            onPress={() =>
+                              shareBreakdown(r.bill, r.shareId ? shortUrl(r.shareId) : undefined).catch(
+                                () => {},
+                              )
+                            }
                             hitSlop={8}
                             style={styles.shareBtn}
                           >
@@ -198,6 +248,7 @@ export function HistoryScreen({
                   )}
                 </Card>
               </SwipeRow>
+              </View>
             );
           })
         )}
@@ -256,6 +307,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkOn: { backgroundColor: colors.success, borderColor: colors.success },
+  pulseBorder: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+  },
   colHeaderRow: { flexDirection: "row", alignItems: "center", gap: spacing(1), marginBottom: spacing(0.5) },
   colHeader: { color: colors.textDim, fontSize: 12, fontWeight: "700" },
   colPaid: { width: 40, textAlign: "center" },

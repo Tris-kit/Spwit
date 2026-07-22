@@ -58,4 +58,7 @@ export type SavedReceipt = {
   receiptImage: string | null;
   /** Person ids (from bill.people) marked NOT yet paid. Empty/undefined = all paid. */
   unpaid?: string[];
+  /** Short-link id (Turso) once shared, plus the token to update that stored copy. */
+  shareId?: string;
+  shareEditToken?: string;
 };

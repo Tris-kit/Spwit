@@ -127,6 +127,21 @@ export function BuildScreen({
     peopleScroll.c > peopleScroll.w + 8 &&
     peopleScroll.x < peopleScroll.c - peopleScroll.w - 8;
 
+  // "Hold to edit" hint: shown briefly when you tap the person you're already on.
+  const tip = useRef(new Animated.Value(0)).current;
+  const [tipVisible, setTipVisible] = useState(false);
+  const showEditTip = () => {
+    setTipVisible(true);
+    tip.setValue(0);
+    Animated.sequence([
+      Animated.timing(tip, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.delay(1000),
+      Animated.timing(tip, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start(({ finished }) => {
+      if (finished) setTipVisible(false);
+    });
+  };
+
   // Add / edit-person sheet
   const [addingPerson, setAddingPerson] = useState(false);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
@@ -384,17 +399,12 @@ export function BuildScreen({
   const total = items.reduce((s, i) => s + i.price, 0);
   const unassigned = items.filter((i) => (assignments[i.id] ?? []).length === 0).length;
 
-  // Warn before advancing if some items still belong to nobody.
+  // Block advancing until every item is claimed by someone.
   const handleNext = () => {
     if (unassigned > 0) {
       Alert.alert(
-        "Unassigned items",
-        `${unassigned} item${unassigned > 1 ? "s aren't" : " isn't"} assigned to anyone. ` +
-          `They won't be counted in the split. Continue anyway?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Continue", onPress: onNext },
-        ],
+        "Assign every item",
+        `${unassigned} item${unassigned > 1 ? "s still need" : " still needs"} to be claimed before you can continue.`,
       );
       return;
     }
@@ -421,15 +431,15 @@ export function BuildScreen({
             </Text>
             <Icon name="edit-2" size={15} color={colors.textDim} />
           </Pressable>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing(1.5) }}>
-            {receiptImage && (
-              <Pressable onPress={() => setViewingPhoto(true)} hitSlop={8} style={styles.viewPhotoBtn}>
-                <Icon name="file-text" size={14} color={colors.primary} />
-                <Text style={styles.viewPhoto}>Receipt</Text>
-              </Pressable>
-            )}
-            <Text style={styles.total}>${total.toFixed(2)}</Text>
-          </View>
+        </View>
+        <View style={styles.metaRow}>
+          {receiptImage && (
+            <Pressable onPress={() => setViewingPhoto(true)} hitSlop={8} style={styles.viewPhotoBtn}>
+              <Icon name="file-text" size={14} color={colors.primary} />
+              <Text style={styles.viewPhoto}>Receipt</Text>
+            </Pressable>
+          )}
+          <Text style={styles.total}>${total.toFixed(2)}</Text>
         </View>
         <Text style={styles.sub}>
           {activePerson
@@ -491,6 +501,13 @@ export function BuildScreen({
           </Text>
         )}
         <View>
+          {tipVisible && (
+            <Animated.View style={[styles.tipRow, { opacity: tip }]} pointerEvents="none">
+              <View style={styles.tipBubble}>
+                <Text style={styles.tipText}>Hold to edit</Text>
+              </View>
+            </Animated.View>
+          )}
           <ScrollView
             ref={peopleRef}
             horizontal
@@ -514,7 +531,10 @@ export function BuildScreen({
                   key={p.id}
                   onPress={() => {
                     setEditingRowId(null);
-                    setActiveId(p.id);
+                    // Tapping the person you're already on does nothing useful —
+                    // hint that a long-press edits them instead.
+                    if (isActive) showEditTip();
+                    else setActiveId(p.id);
                   }}
                   onLongPress={() => openEditPerson(p)}
                   style={styles.personChip}
@@ -670,8 +690,23 @@ const styles = StyleSheet.create({
   h1Placeholder: { color: colors.textDim },
   viewPhotoBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   viewPhoto: { color: colors.primary, fontSize: 14, fontWeight: "600" },
-  total: { color: colors.textDim, fontSize: 18, fontWeight: "700" },
-  sub: { color: colors.textDim, fontSize: 14, marginTop: 2, marginBottom: spacing(1.5) },
+  total: { color: colors.text, fontSize: 18, fontWeight: "800" },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: spacing(1.5),
+    marginTop: spacing(0.5),
+  },
+  sub: { color: colors.textDim, fontSize: 14, marginTop: spacing(1), marginBottom: spacing(1.5) },
+  tipRow: { position: "absolute", top: -30, left: 0, right: 0, alignItems: "center", zIndex: 20 },
+  tipBubble: {
+    backgroundColor: colors.text,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: radius.sm,
+  },
+  tipText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",

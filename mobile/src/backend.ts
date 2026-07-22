@@ -81,6 +81,11 @@ export async function scanReceiptViaBackend(uri: string): Promise<ParsedReceipt>
 
 export type ShareResult = { id: string; url: string; editToken: string };
 
+/** Build the short public URL for a stored share id (e.g. https://spwit.app/s/k4f9x2). */
+export function shortUrl(shareId: string): string {
+  return `${BASE}/s/${shareId}`;
+}
+
 /** Publish a bill and get back a public link + an edit token to keep locally. */
 export async function shareBill(
   bill: Bill,

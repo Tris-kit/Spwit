@@ -55,6 +55,8 @@ export default function App() {
   const [me, setMe] = useState<Person>(defaultMe);
   const [savedProfiles, setSavedProfiles] = useState<Person[]>([]);
   const [history, setHistory] = useState<SavedReceipt[]>([]);
+  // When jumping from Contacts to a specific bill, History expands + scrolls to it.
+  const [historyFocusId, setHistoryFocusId] = useState<string | null>(null);
 
   useEffect(() => {
     loadMe().then(setMe);
@@ -157,9 +159,20 @@ export default function App() {
       bill: { name: billName.trim() || undefined, items, people, assignments, charges },
       receiptImage,
       unpaid: existing?.unpaid,
+      shareId: existing?.shareId,
+      shareEditToken: existing?.shareEditToken,
     };
     const rest = history.filter((h) => h.id !== entry.id);
     const next = [entry, ...rest];
+    setHistory(next);
+    saveHistory(next);
+  };
+
+  // Persist the short-link id/token onto the current bill's history record.
+  const saveShareInfo = (recordId: string, shareId: string, shareEditToken: string) => {
+    const next = history.map((h) =>
+      h.id === recordId ? { ...h, shareId, shareEditToken } : h,
+    );
     setHistory(next);
     saveHistory(next);
   };
@@ -257,6 +270,9 @@ export default function App() {
           me={me}
           receiptImage={receiptImage}
           fromHistory={billFromHistory}
+          shareId={history.find((h) => h.id === billId)?.shareId}
+          shareEditToken={history.find((h) => h.id === billId)?.shareEditToken}
+          onShared={(shareId, editToken) => saveShareInfo(billId, shareId, editToken)}
           onUpdatePerson={updatePerson}
           onEdit={editBill}
           onRestart={() => leaveResults(billFromHistory ? "history" : "start")}
@@ -274,6 +290,10 @@ export default function App() {
           onAdd={addContact}
           onUpdate={updateSavedProfile}
           onDelete={deleteSavedProfile}
+          onOpenBill={(billId) => {
+            setHistoryFocusId(billId);
+            setStep("history");
+          }}
           onBack={() => setStep("start")}
         />
       )}
@@ -287,6 +307,8 @@ export default function App() {
           onUpdate={updateReceipt}
           onDelete={deleteReceipt}
           onBack={() => setStep("start")}
+          focusId={historyFocusId}
+          onFocusHandled={() => setHistoryFocusId(null)}
         />
       )}
     </SafeAreaView>
