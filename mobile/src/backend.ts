@@ -1,4 +1,4 @@
-// Client for the Tabby backend (server/). Two production paths:
+// Client for the Spwit backend (server/). Two production paths:
 //   1. Receipt OCR via the server's key — no on-device API key needed.
 //   2. Shareable bill links — publish a split to a web page anyone can open.
 //

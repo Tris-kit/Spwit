@@ -15,7 +15,7 @@ const KEYS: Record<AiProvider, string> = {
 const PROVIDER_PREF = "ai_provider_v1";
 const OCR_MODE_PREF = "ocr_mode_v1";
 
-// Where receipt OCR runs: "backend" (Tabby's server key, no on-device key) or
+// Where receipt OCR runs: "backend" (Spwit's server key, no on-device key) or
 // "device" (your own key stored in the keychain). Defaults to backend.
 export type OcrMode = "backend" | "device";
 

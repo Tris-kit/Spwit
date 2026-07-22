@@ -1,16 +1,17 @@
 {
   "expo": {
-    "name": "Tabby",
-    "slug": "snapsplit",
+    "name": "Spwit",
+    "slug": "spwit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tristan.snapsplit"
+      "bundleIdentifier": "com.tristan.spwit"
     },
     "android": {
+      "package": "com.tristan.spwit",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -27,14 +28,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "SnapSplit uses your photos to read a receipt.",
-          "cameraPermission": "SnapSplit uses the camera to scan a receipt."
+          "photosPermission": "Spwit uses your photos to read a receipt.",
+          "cameraPermission": "Spwit uses the camera to scan a receipt."
         }
       ],
       [
         "expo-contacts",
         {
-          "contactsPermission": "SnapSplit uses your contacts so you can quickly add people to a split."
+          "contactsPermission": "Spwit uses your contacts so you can quickly add people to a split."
         }
       ]
     ]

@@ -1,4 +1,4 @@
-// SnapSplit — receipt tab splitter. Flow: start → build → tax/tip → totals.
+// Spwit — receipt tab splitter. Flow: start → build → tax/tip → totals.
 // Start also branches out to Profile, Contacts, and History.
 import React, { useEffect, useState } from "react";
 import { SafeAreaView, StatusBar, StyleSheet } from "react-native";

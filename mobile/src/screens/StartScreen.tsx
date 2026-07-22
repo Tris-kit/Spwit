@@ -84,7 +84,7 @@ export function StartScreen({
         <View style={styles.mascot}>
           <CatLogo size={64} color={colors.primary} />
         </View>
-        <Text style={styles.title}>Tabby</Text>
+        <Text style={styles.title}>Spwit</Text>
         <Text style={styles.subtitle}>
           Snap a receipt, tap who had what, done.
         </Text>
@@ -118,7 +118,7 @@ export function StartScreen({
       <View style={{ flex: 1 }} />
 
       <Pressable onPress={openTip} hitSlop={6} style={styles.tipRow}>
-        <Text style={styles.tip}>Like Tabby? Buy me a coffee to keep it free.</Text>
+        <Text style={styles.tip}>Like Spwit? Buy me a coffee to keep it free.</Text>
         <Icon name="external-link" size={11} color="#C7B8AB" />
       </Pressable>
     </View>

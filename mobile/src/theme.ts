@@ -1,5 +1,5 @@
 // Central style tokens so the whole app looks like one system.
-// Tabby — warm light theme: off-white canvas, rich-orange accents, warm ink.
+// Spwit — warm light theme: off-white canvas, rich-orange accents, warm ink.
 
 export const colors = {
   bg: "#FFF9F4", // warm off-white canvas

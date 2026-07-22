@@ -32,7 +32,7 @@ export function Icon({
   return <Feather name={name} size={size} color={color} />;
 }
 
-// Tabby's mascot glyph.
+// Spwit's mascot glyph.
 export function CatLogo({
   size = 72,
   color = colors.primary,

@@ -56,7 +56,7 @@ export async function captureReceipt(fromCamera: boolean): Promise<string | null
 
 /**
  * Run receipt OCR. Honors the user's selected mode (Settings):
- *   - "backend": scan via Tabby's server (no on-device key). Falls back to the
+ *   - "backend": scan via Spwit's server (no on-device key). Falls back to the
  *     device path if the backend isn't configured in this build.
  *   - "device":  scan with the user's own Gemini key (prompts if missing).
  */

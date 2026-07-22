@@ -70,6 +70,6 @@ export async function bestShareUrl(bill: Bill): Promise<string> {
 /** Open the OS share sheet with a link to the breakdown (uses `url` if given). */
 export async function shareBreakdown(bill: Bill, url?: string): Promise<void> {
   const link = url ?? (await bestShareUrl(bill));
-  const title = bill.name?.trim() ? `Tabby split — ${bill.name.trim()}` : "Tabby split";
+  const title = bill.name?.trim() ? `Spwit split — ${bill.name.trim()}` : "Spwit split";
   await Share.share({ message: `${title}\n${link}`, url: link });
 }

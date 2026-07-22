@@ -1,4 +1,4 @@
-# Tabby
+# Spwit
 
 Scan a receipt, tap who had what, and send everyone their share. A local-first
 receipt/tab splitter built with Expo + React Native.
@@ -21,7 +21,7 @@ before changing native/config code.
 ## Backend
 
 Optional. OCR proxy + shareable bill links live in a separate repo,
-[`Tris-kit/Tabby-Backend`](https://github.com/Tris-kit/Tabby-Backend)
+[`Tris-kit/Spwit-Backend`](https://github.com/Tris-kit/Spwit-Backend)
 (Next.js on Vercel). Point the app at a deployment with:
 
 ```
