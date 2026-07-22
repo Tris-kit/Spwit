@@ -2,8 +2,8 @@
 
 Next.js (App Router) service deployed on **Vercel**. Two jobs:
 
-1. **OCR proxy** — receipt scanning runs server-side with the org's Anthropic
-   key, so app users never enter their own key.
+1. **OCR proxy** — receipt scanning runs server-side with the org's Google AI
+   (Gemini) key, so app users never enter their own key.
 2. **Shareable bill links** — persist a split behind an unguessable id and
    render a public web page (`/s/:id`) anyone can open without the app.
 
@@ -14,7 +14,7 @@ land later, that's when Postgres earns its place.
 ## Layout
 
 ```
-server/
+.                          (repo root)
   app/
     api/
       ocr/route.ts           POST  — receipt image -> parsed line items
@@ -23,7 +23,7 @@ server/
     s/[id]/page.tsx          public server-rendered share page
     page.tsx                 landing page
   lib/
-    ocr.ts        Claude vision call (server key)
+    ocr.ts        Gemini vision call (server key)
     split.ts      per-person math, ported from the app (keep in sync)
     store.ts      Redis read/write + edit-token check
     rateLimit.ts  per-IP fixed-window limiter
@@ -75,14 +75,14 @@ The human-facing share page.
 ## Local development
 
 ```bash
-cd server
+cd Tabby-Backend
 npm install
 cp .env.example .env.local   # fill in the three secrets
 npm run dev                  # http://localhost:3000
 ```
 
 Get the Upstash vars from the Upstash console (or `vercel env pull` once the
-integration is linked). `ANTHROPIC_API_KEY` is your org key.
+integration is linked). `GEMINI_API_KEY` is your Google AI Studio key.
 
 Smoke test:
 ```bash
@@ -101,18 +101,18 @@ curl -X POST localhost:3000/api/bills -H 'content-type: application/json' -d '{
 ## Deploy to Vercel
 
 1. Push this repo to GitHub.
-2. In Vercel, **New Project** → import the repo → set **Root Directory** to
-   `server`.
+2. In Vercel, **New Project** → import the repo. Framework preset auto-detects
+   **Next.js**; leave **Root Directory** at the default `./`.
 3. Add the **Upstash for Redis** integration (Marketplace) — it injects
    `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
-4. Add `ANTHROPIC_API_KEY` in Project → Settings → Environment Variables.
+4. Add `GEMINI_API_KEY` in Project → Settings → Environment Variables.
 5. (Optional) `NEXT_PUBLIC_BASE_URL` if you want share links on a custom domain.
 6. Deploy.
 
 ## Wiring the app
 
 Point the Expo app at the deployment (e.g. `EXPO_PUBLIC_API_BASE`) and call
-`POST /api/ocr` instead of the on-device Claude/Gemini path, and `POST /api/bills`
+`POST /api/ocr` instead of the on-device Gemini path, and `POST /api/bills`
 from the results screen's share action. The device keeps its local history as-is;
 the backend only holds the copies you explicitly share. The app repo
 (`Tris-kit/Tabby`) ships a ready-made client at `src/backend.ts`.

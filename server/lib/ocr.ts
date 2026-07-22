@@ -1,34 +1,32 @@
-// Receipt OCR via Claude vision, run server-side with the org's key. This is the
+// Receipt OCR via Google Gemini, run server-side with the org's key. This is the
 // production replacement for the app's on-device key path: the client sends a
 // small base64 JPEG, we call the model, and return structured line items.
+//
+// Mirrors the app's recognizeReceiptGemini (src/ocr.ts) so results match.
 
-import Anthropic from "@anthropic-ai/sdk";
 import { ParsedReceipt } from "./types";
 
-// Cheapest capable vision model. Receipt OCR is high-volume and simple, so Haiku
-// is the deliberate cost choice here (~5x cheaper than Opus); bump to
-// "claude-opus-4-8" if accuracy on messy receipts ever needs it.
-const MODEL = "claude-haiku-4-5";
+// Cheap, fast multimodal model — receipt OCR is high-volume and simple.
+const MODEL = "gemini-3.5-flash-lite";
 
-const RECEIPT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
+// Gemini's schema dialect: uppercase types, no additionalProperties.
+const GEMINI_SCHEMA = {
+  type: "OBJECT",
   properties: {
     items: {
-      type: "array",
+      type: "ARRAY",
       items: {
-        type: "object",
-        additionalProperties: false,
+        type: "OBJECT",
         properties: {
-          name: { type: "string" },
-          price: { type: "number" },
+          name: { type: "STRING" },
+          price: { type: "NUMBER" },
         },
         required: ["name", "price"],
       },
     },
-    tax: { type: "number" },
-    subtotal: { type: "number" },
-    total: { type: "number" },
+    tax: { type: "NUMBER" },
+    subtotal: { type: "NUMBER" },
+    total: { type: "NUMBER" },
   },
   required: ["items", "tax", "subtotal", "total"],
 } as const;
@@ -39,41 +37,48 @@ const PROMPT =
   "subtotal, tax, tip/gratuity, total, or payment lines as items. Report tax, " +
   "subtotal, and total separately — use 0 if a value isn't printed.";
 
-// Lazy so importing this module doesn't require ANTHROPIC_API_KEY at build time.
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
-  return _client;
-}
-
 export async function recognizeReceipt(
   imageBase64: string,
   mediaType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg",
 ): Promise<ParsedReceipt> {
-  const res = await client().messages.create({
-    model: MODEL,
-    max_tokens: 1500,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
-          { type: "text", text: PROMPT },
-        ],
-      },
-    ],
-    // Constrain the response to our schema so we always get parseable JSON.
-    output_config: { format: { type: "json_schema", schema: RECEIPT_SCHEMA } },
-  } as Anthropic.MessageCreateParamsNonStreaming);
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not set.");
 
-  if ((res.stop_reason as string) === "refusal") {
-    throw new Error("The model declined to read this image.");
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { inline_data: { mime_type: mediaType, data: imageBase64 } },
+              { text: PROMPT },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: GEMINI_SCHEMA,
+        },
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const body = await res.text();
+    if (res.status === 400 && /api[\s_-]?key/i.test(body)) {
+      throw new Error("Gemini API key was rejected.");
+    }
+    throw new Error(`Gemini OCR failed (${res.status}). ${body.slice(0, 160)}`);
   }
 
-  const textBlock = res.content.find((b): b is Anthropic.TextBlock => b.type === "text");
-  if (!textBlock?.text) throw new Error("Empty response from the model.");
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Empty response from Gemini.");
 
-  const parsed = JSON.parse(textBlock.text) as {
+  const parsed = JSON.parse(text) as {
     items?: { name: string; price: number }[];
     tax?: number;
     subtotal?: number;
