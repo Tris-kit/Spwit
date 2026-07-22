@@ -21,10 +21,12 @@ export function avatarLabel(p: Person): string {
  */
 export function venmoLink(handle: string, cents: number, note: string): string {
   const h = handle.replace(/^@/, "");
-  const params = new URLSearchParams({
-    txn: "pay",
-    amount: (cents / 100).toFixed(2),
-    note,
-  });
-  return `https://venmo.com/${encodeURIComponent(h)}?${params.toString()}`;
+  // Build the query manually with encodeURIComponent: URLSearchParams encodes
+  // spaces as "+", which Venmo shows literally in the note instead of spaces.
+  const q = [
+    "txn=pay",
+    `amount=${(cents / 100).toFixed(2)}`,
+    `note=${encodeURIComponent(note)}`,
+  ].join("&");
+  return `https://venmo.com/${encodeURIComponent(h)}?${q}`;
 }
