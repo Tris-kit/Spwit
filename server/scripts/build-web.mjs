@@ -33,7 +33,10 @@ const run = (cmd, cwd) =>
 // missing (i.e. on CI / Vercel); skip when already installed locally.
 if (!existsSync(join(mobileDir, "node_modules"))) {
   console.log("[build-web] installing mobile deps…");
-  run("npm ci", mobileDir);
+  // `npm install --omit=dev` (not `npm ci`): the web export only needs runtime
+  // deps — no typescript/@types/eas-cli — and install won't hard-fail on a
+  // dev-only lockfile drift the way strict `npm ci` does.
+  run("npm install --omit=dev --no-audit --no-fund", mobileDir);
 }
 
 console.log("[build-web] exporting Expo web bundle…");
