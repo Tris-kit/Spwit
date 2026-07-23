@@ -226,7 +226,10 @@ export function HistoryScreen({
                       // Expanding while swiped open → close the delete.
                       rowRefs.current[r.id]?.close();
                       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                      setExpanded(open ? null : r.id);
+                      const willOpen = !open;
+                      setExpanded(willOpen ? r.id : null);
+                      // Refresh this bill's paid-status each time it's opened.
+                      if (willOpen) syncPaidStatus([r]);
                     }}
                     style={styles.row}
                   >

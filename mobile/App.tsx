@@ -201,6 +201,13 @@ export default function App() {
     saveHistory(next);
   };
 
+  // Persist server-synced paid-status onto a bill's history record.
+  const saveBillUnpaid = (recordId: string, unpaid: string[]) => {
+    const next = history.map((h) => (h.id === recordId ? { ...h, unpaid } : h));
+    setHistory(next);
+    saveHistory(next);
+  };
+
   const updateReceipt = (r: SavedReceipt) => {
     const next = history.map((h) => (h.id === r.id ? r : h));
     setHistory(next);
@@ -314,8 +321,10 @@ export default function App() {
           fromHistory={billFromHistory}
           shareId={history.find((h) => h.id === billId)?.shareId}
           shareEditToken={history.find((h) => h.id === billId)?.shareEditToken}
+          unpaid={history.find((h) => h.id === billId)?.unpaid}
           onShared={(shareId, editToken) => saveShareInfo(billId, shareId, editToken)}
           onUpdatePerson={updatePerson}
+          onUnpaidSynced={(unpaid) => saveBillUnpaid(billId, unpaid)}
           onBack={() => (billFromHistory ? leaveResults("history") : setStep("charges"))}
           onEdit={editBill}
           onRestart={() => leaveResults(billFromHistory ? "history" : "start")}

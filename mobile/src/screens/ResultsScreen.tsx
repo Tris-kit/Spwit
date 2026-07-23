@@ -21,7 +21,7 @@ import { computeBreakdown, toDollars } from "../split";
 import { sendGroupText } from "../sms";
 import { promptText } from "../prompt";
 import { buildShareUrl, canShareBreakdown, shareBreakdown } from "../shareLink";
-import { shareBill, shortUrl, updateSharedBill } from "../backend";
+import { fetchSharedBill, isBackendEnabled, shareBill, shortUrl, updateSharedBill } from "../backend";
 import { Avatar, Card, Icon, type IconName } from "../ui";
 import { colors, radius, spacing } from "../theme";
 
@@ -116,8 +116,10 @@ export function ResultsScreen({
   fromHistory,
   shareId,
   shareEditToken,
+  unpaid: unpaidProp,
   onShared,
   onUpdatePerson,
+  onUnpaidSynced,
   onBack,
   onEdit,
   onRestart,
@@ -128,8 +130,10 @@ export function ResultsScreen({
   fromHistory?: boolean;
   shareId?: string;
   shareEditToken?: string;
+  unpaid?: string[];
   onShared?: (shareId: string, editToken: string) => void;
   onUpdatePerson: (id: string, patch: Partial<Person>) => void;
+  onUnpaidSynced?: (unpaid: string[]) => void;
   onBack: () => void;
   onEdit: () => void;
   onRestart: () => void;
@@ -145,6 +149,23 @@ export function ResultsScreen({
   // Best link to encode in the QR: the short link if ready, else the
   // self-contained /v# link so the QR always works.
   const qrValue = shareUrl ?? buildShareUrl(bill);
+
+  // Live paid-status. null = untracked/unknown (no badges shown). Seeded from the
+  // saved record, then refreshed from the server whenever the screen opens.
+  const [unpaid, setUnpaid] = useState<string[] | null>(unpaidProp ?? null);
+  useEffect(() => {
+    if (!shareId || !isBackendEnabled()) return;
+    let cancelled = false;
+    fetchSharedBill(shareId).then((remote) => {
+      if (cancelled || !remote || !Array.isArray(remote.unpaid)) return;
+      setUnpaid(remote.unpaid);
+      onUnpaidSynced?.(remote.unpaid);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareId]);
 
   // On opening the breakdown, get the short link ready: reuse the stored one (and
   // refresh its content in the background), or create it — with a spinner on the
@@ -329,6 +350,11 @@ export function ResultsScreen({
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.personName}>{pb.person.name}</Text>
+                    {!pb.person.isMe && unpaid !== null && (
+                      <Text style={unpaid.includes(pb.person.id) ? styles.badgeUnpaid : styles.badgePaid}>
+                        {unpaid.includes(pb.person.id) ? "Unpaid" : "Paid"}
+                      </Text>
+                    )}
                     {!pb.person.isMe && (
                       pb.person.phone ? (
                         <Text style={styles.personPhone}>{pb.person.phone}</Text>
@@ -600,6 +626,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   actionLabel: { color: colors.primary, fontSize: 12, fontWeight: "600" },
+  badgePaid: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  badgeUnpaid: { color: colors.warning, fontSize: 12, fontWeight: "700", marginTop: 2 },
   // Share bubble
   menuBackdrop: {
     flex: 1,
