@@ -47,10 +47,10 @@ export function ChargesScreen({
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}>
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.h1}>Tax & Tip</Text>
+          <Pressable onPress={onBack} hitSlop={8} style={{ flex: 1 }}>
+            <Text style={styles.h1}>‹ Tax & Tip</Text>
             {billName.trim() ? <Text style={styles.subtitle}>{billName.trim()}</Text> : null}
-          </View>
+          </Pressable>
           {receiptImage && (
             <Pressable onPress={() => setViewingPhoto(true)} hitSlop={8} style={styles.viewPhotoBtn}>
               <Icon name="file-text" size={14} color={colors.primary} />

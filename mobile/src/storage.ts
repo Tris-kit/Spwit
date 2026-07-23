@@ -13,13 +13,22 @@ const ME_KEY = "me_profile_v1";
 const PROFILES_KEY = "saved_profiles_v1";
 const HISTORY_KEY = "history_v1";
 
-// Default owner profile — editable later.
+// Default owner profile — name is filled in during first-launch onboarding.
 export const defaultMe: Person = {
   id: "me",
-  name: "Tristan",
+  name: "",
   color: personColors[0],
   isMe: true,
 };
+
+// True once the user has saved their profile (i.e. finished onboarding).
+export async function hasProfile(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(ME_KEY)) !== null;
+  } catch {
+    return false;
+  }
+}
 
 export async function loadMe(): Promise<Person> {
   try {

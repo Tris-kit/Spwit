@@ -6,6 +6,7 @@ import { Assignments, Charges, Item, Person, SavedReceipt } from "./src/types";
 import { makeId } from "./src/util";
 import {
   defaultMe,
+  hasProfile,
   loadHistory,
   loadMe,
   loadProfiles,
@@ -13,6 +14,7 @@ import {
   saveMe,
   saveProfiles,
 } from "./src/storage";
+import { OnboardingScreen } from "./src/screens/OnboardingScreen";
 import { StartScreen } from "./src/screens/StartScreen";
 import { BuildScreen } from "./src/screens/BuildScreen";
 import { ChargesScreen } from "./src/screens/ChargesScreen";
@@ -57,12 +59,27 @@ export default function App() {
   const [history, setHistory] = useState<SavedReceipt[]>([]);
   // When jumping from Contacts to a specific bill, History expands + scrolls to it.
   const [historyFocusId, setHistoryFocusId] = useState<string | null>(null);
+  // null = still checking; false = show first-launch onboarding; true = ready.
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadMe().then(setMe);
     loadProfiles().then(setSavedProfiles);
     loadHistory().then(setHistory);
+    hasProfile().then(setOnboarded);
   }, []);
+
+  // Finish first-launch setup: save the profile, then enter the app.
+  const completeOnboarding = (info: { name: string; venmo?: string; phone?: string }) => {
+    saveMeProfile({
+      ...defaultMe,
+      name: info.name,
+      venmo: info.venmo,
+      phone: info.phone,
+      isMe: true,
+    });
+    setOnboarded(true);
+  };
 
   const startBill = (
     parsedItems: { name: string; price: number }[],
@@ -221,11 +238,20 @@ export default function App() {
 
   const isWeb = Platform.OS === "web";
 
-  return (
+  const shell = (children: React.ReactNode) => (
     <View style={[styles.outer, isWeb && styles.outerWeb]}>
       <SafeAreaView style={[styles.root, isWeb && styles.rootWeb]}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+        {children}
+      </SafeAreaView>
+    </View>
+  );
 
+  if (onboarded === null) return shell(null); // still loading persisted state
+  if (!onboarded) return shell(<OnboardingScreen onDone={completeOnboarding} />);
+
+  return shell(
+    <>
       {step === "start" && (
         <StartScreen
           me={me}
@@ -277,6 +303,7 @@ export default function App() {
           shareEditToken={history.find((h) => h.id === billId)?.shareEditToken}
           onShared={(shareId, editToken) => saveShareInfo(billId, shareId, editToken)}
           onUpdatePerson={updatePerson}
+          onBack={() => (billFromHistory ? leaveResults("history") : setStep("charges"))}
           onEdit={editBill}
           onRestart={() => leaveResults(billFromHistory ? "history" : "start")}
         />
@@ -314,15 +341,14 @@ export default function App() {
           onFocusHandled={() => setHistoryFocusId(null)}
         />
       )}
-      </SafeAreaView>
-    </View>
+    </>,
   );
 }
 
 const styles = StyleSheet.create({
   outer: { flex: 1, backgroundColor: colors.bg },
   // On web, sit the phone-width app column on a neutral backdrop, centered.
-  outerWeb: { backgroundColor: "#EFE7DF", alignItems: "center" },
+  outerWeb: { backgroundColor: colors.webBackdrop, alignItems: "center" },
   root: { flex: 1, backgroundColor: colors.bg },
   rootWeb: {
     width: "100%",

@@ -50,6 +50,13 @@ const PWA_HEAD = `
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Spwit" />
+    <meta property="og:title" content="Spwit — split the tab, settle up" />
+    <meta property="og:description" content="Snap a receipt, tap who had what, done." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://spwit.app/" />
+    <meta property="og:image" content="https://spwit.app/opengraph-image" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://spwit.app/opengraph-image" />
   `;
 
 const indexPath = join(publicDir, "index.html");

@@ -434,13 +434,13 @@ export function BuildScreen({
           </Pressable>
         </View>
         <View style={styles.metaRow}>
+          <Text style={styles.total}>${total.toFixed(2)}</Text>
           {receiptImage && (
             <Pressable onPress={() => setViewingPhoto(true)} hitSlop={8} style={styles.viewPhotoBtn}>
               <Icon name="file-text" size={14} color={colors.primary} />
               <Text style={styles.viewPhoto}>Receipt</Text>
             </Pressable>
           )}
-          <Text style={styles.total}>${total.toFixed(2)}</Text>
         </View>
         <Text style={styles.sub}>
           {activePerson
@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     gap: spacing(1.5),
     marginTop: spacing(0.5),
   },

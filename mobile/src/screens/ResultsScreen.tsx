@@ -20,7 +20,7 @@ import { sendGroupText } from "../sms";
 import { promptText } from "../prompt";
 import { canShareBreakdown, shareBreakdown } from "../shareLink";
 import { shareBill, shortUrl, updateSharedBill } from "../backend";
-import { Avatar, Button, Card, Icon } from "../ui";
+import { Avatar, Card, Icon, type IconName } from "../ui";
 import { colors, radius, spacing } from "../theme";
 
 // For the group text: show first names, disambiguating collisions with a last
@@ -50,6 +50,39 @@ function textNames(people: Person[]): Record<string, string> {
   return names;
 }
 
+// One footer action: an icon above a small label. Used for Edit · Link · Text · Home.
+function FooterAction({
+  icon,
+  label,
+  onPress,
+  loading,
+  disabled,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled || loading}
+      hitSlop={6}
+      style={styles.action}
+    >
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : (
+        <Icon name={icon} size={22} color={disabled ? colors.primaryDim : colors.primary} />
+      )}
+      <Text style={[styles.actionLabel, disabled && { color: colors.textFaint }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function ResultsScreen({
   bill,
   me,
@@ -59,6 +92,7 @@ export function ResultsScreen({
   shareEditToken,
   onShared,
   onUpdatePerson,
+  onBack,
   onEdit,
   onRestart,
 }: {
@@ -70,6 +104,7 @@ export function ResultsScreen({
   shareEditToken?: string;
   onShared?: (shareId: string, editToken: string) => void;
   onUpdatePerson: (id: string, patch: Partial<Person>) => void;
+  onBack: () => void;
   onEdit: () => void;
   onRestart: () => void;
 }) {
@@ -209,10 +244,10 @@ export function ResultsScreen({
         contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(12) }}
       >
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.h1}>Breakdown</Text>
+          <Pressable onPress={onBack} hitSlop={8} style={{ flex: 1 }}>
+            <Text style={styles.h1}>‹ Breakdown</Text>
             {bill.name ? <Text style={styles.subName}>{bill.name}</Text> : null}
-          </View>
+          </Pressable>
           {receiptImage && (
             <Pressable onPress={() => setViewingPhoto(true)} hitSlop={8} style={styles.viewPhotoBtn}>
               <Icon name="file-text" size={14} color={colors.primary} />
@@ -308,33 +343,25 @@ export function ResultsScreen({
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button
-          title={Platform.OS === "web" ? "Share the totals" : "Text everyone their total"}
-          onPress={textEveryone}
-          loading={sharing}
-        />
-        <View style={styles.footerLinks}>
-          <Pressable onPress={onEdit} hitSlop={8} style={[styles.footerLinkRow, styles.linkLeft]}>
-            <Icon name="edit-2" size={14} color={colors.primary} />
-            <Text style={styles.footerLink}>Edit bill</Text>
-          </Pressable>
-          {canShareBreakdown() && (
-            <Pressable
-              onPress={() => shareBreakdown(bill, shareUrl ?? undefined).catch(() => {})}
-              hitSlop={12}
-              style={styles.linkCenter}
-              disabled={sharing}
-            >
-              {sharing ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Icon name="share-2" size={20} color={colors.primary} />
-              )}
-            </Pressable>
-          )}
-          <Pressable onPress={onRestart} hitSlop={8} style={styles.linkRight}>
-            <Text style={styles.footerLink}>{fromHistory ? "Done" : "New split"}</Text>
-          </Pressable>
+        <View style={styles.actionRow}>
+          <FooterAction icon="edit-2" label="Edit" onPress={onEdit} />
+          <FooterAction
+            icon="link"
+            label="Link"
+            onPress={() => shareBreakdown(bill, shareUrl ?? undefined).catch(() => {})}
+            disabled={!canShareBreakdown()}
+          />
+          <FooterAction
+            icon={Platform.OS === "web" ? "share" : "message-square"}
+            label={Platform.OS === "web" ? "Share" : "Text"}
+            onPress={textEveryone}
+            loading={sharing}
+          />
+          <FooterAction
+            icon="home"
+            label={fromHistory ? "Done" : "Home"}
+            onPress={onRestart}
+          />
         </View>
       </View>
 
@@ -467,17 +494,20 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.bg,
   },
-  footerLinks: {
+  actionRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginTop: spacing(3),
-    paddingHorizontal: spacing(0.5),
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
-  linkLeft: { flex: 1 },
-  linkCenter: { paddingHorizontal: spacing(1) },
-  linkRight: { flex: 1, alignItems: "flex-end" },
-  footerLinkRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  footerLink: { color: colors.primary, fontSize: 14, fontWeight: "600" },
+  action: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: spacing(0.5),
+    minHeight: 44,
+  },
+  actionLabel: { color: colors.primary, fontSize: 12, fontWeight: "600" },
   modalWrap: { flex: 1, justifyContent: "flex-end", backgroundColor: colors.scrimSoft },
   sheet: {
     backgroundColor: colors.surface,

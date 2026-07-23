@@ -20,6 +20,7 @@ export const colors = {
   scrim: "rgba(0, 0, 0, 0.92)", // heavy backdrop — full-screen photo viewer
   scrimSoft: "rgba(0, 0, 0, 0.5)", // lighter backdrop — bottom-sheet modals
   transparent: "transparent",
+  webBackdrop: "#EFE7DF", // neutral canvas behind the phone-width column on web
 };
 
 // Same color at a given opacity — lets alpha shades (e.g. gradient fades) derive

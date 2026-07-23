@@ -23,9 +23,16 @@ export async function generateMetadata({
   if (!stored) return { title: "Spwit" };
   const name = stored.bill.name?.trim();
   const total = computeBreakdown(stored.bill).grandTotalCents;
+  const title = name ? `${name} · Spwit` : "Your split · Spwit";
+  const description = `Total ${money(total)} · split ${stored.bill.people.length} ${
+    stored.bill.people.length === 1 ? "way" : "ways"
+  }`;
+  // og:image is supplied automatically by opengraph-image.tsx in this folder.
   return {
-    title: name ? `${name} · Spwit` : "Your split · Spwit",
-    description: `Total ${money(total)} · split ${stored.bill.people.length} ways`,
+    title,
+    description,
+    openGraph: { title, description, type: "website", url: `/s/${id}` },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 
