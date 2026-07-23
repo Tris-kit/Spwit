@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Spwit",
+    "slug": "spwit",
+    "owner": "tryst",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tristan.spwit"
+    },
+    "android": {
+      "package": "com.tristan.spwit",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      ["expo-build-properties", { "ios": { "deploymentTarget": "16.0" } }],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Spwit uses your photos to read a receipt.",
+          "cameraPermission": "Spwit uses the camera to scan a receipt."
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Spwit uses your contacts so you can quickly add people to a split."
+        }
+      ]
+    ]
+  }
+}
