@@ -1,0 +1,8 @@
+# Root-level ignores. Each package (mobile/, server/) has its own .gitignore too.
+node_modules/
+
+# Generated: the mobile web bundle is exported into server/public at build time.
+server/public/
+
+# macOS
+.DS_Store

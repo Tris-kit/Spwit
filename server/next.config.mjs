@@ -5,6 +5,11 @@ const nextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: "8mb" },
   },
+  // Serve the exported Expo web app (in public/index.html) at the site root.
+  // /api/* and /s/* remain real Next routes and take precedence.
+  async rewrites() {
+    return [{ source: "/", destination: "/index.html" }];
+  },
 };
 
 export default nextConfig;
