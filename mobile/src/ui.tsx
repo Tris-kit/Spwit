@@ -408,7 +408,7 @@ function BaseField({
   };
 
   return (
-    <View style={[styles.fieldBox, containerStyle]}>
+    <View style={[styles.fieldBox, containerStyle, focused && styles.fieldBoxFocused]}>
       {prefix ? <Text style={styles.prefixText}>{prefix}</Text> : null}
       <TextInput
         ref={ref}
@@ -733,15 +733,14 @@ export function PersonTray({
           style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrimSoft, opacity: backdrop }]}
         />
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <Animated.View style={[personTrayStyles.slideWrap, { transform: [{ translateY: slide }] }]}>
-          <Pressable style={personTrayStyles.sheet} onPress={() => {}}>
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets
-              contentInsetAdjustmentBehavior="never"
-              keyboardDismissMode="interactive"
-              contentContainerStyle={{ paddingBottom: spacing(2) }}
-            >
+        <Animated.View style={[personTrayStyles.sheet, { transform: [{ translateY: slide }] }]}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+            contentInsetAdjustmentBehavior="never"
+            keyboardDismissMode="interactive"
+            contentContainerStyle={{ paddingBottom: spacing(2) }}
+          >
             <AvatarNameRow
               name={name}
               onName={setName}
@@ -804,7 +803,6 @@ export function PersonTray({
             )}
             <Button title="Cancel" onPress={onClose} variant="ghost" />
           </ScrollView>
-        </Pressable>
         </Animated.View>
       </View>
     </Modal>
@@ -812,8 +810,7 @@ export function PersonTray({
 }
 
 const personTrayStyles = StyleSheet.create({
-  wrap: { flex: 1 },
-  slideWrap: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  wrap: { flex: 1, justifyContent: "flex-end" },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.lg,
@@ -908,6 +905,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  fieldBoxFocused: { borderColor: colors.primary },
   fieldInput: {
     flex: 1,
     height: "100%",

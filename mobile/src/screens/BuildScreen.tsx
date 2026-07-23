@@ -26,11 +26,13 @@ import { colors, personColors, radius, spacing } from "../theme";
 // dismissed. Gear and icons are overlaid; opacity animates between them.
 function RowActions({
   active,
+  selected,
   onOpen,
   onSplit,
   onDone,
 }: {
   active: boolean;
+  selected?: boolean;
   onOpen: () => void;
   onSplit: () => void;
   onDone: () => void;
@@ -55,7 +57,7 @@ function RowActions({
         </Pressable>
       </Animated.View>
       <Animated.View style={[raStyles.icons, { opacity: v }]} pointerEvents={active ? "auto" : "none"}>
-        <Pressable onPress={onSplit} hitSlop={8} style={raStyles.btn}>
+        <Pressable onPress={onSplit} hitSlop={8} style={[raStyles.btn, selected && raStyles.btnOnSelected]}>
           <Icon name="divide" size={16} color={colors.primary} />
         </Pressable>
         <Pressable onPress={onDone} hitSlop={8} style={[raStyles.btn, raStyles.btnDone]}>
@@ -82,6 +84,7 @@ const raStyles = StyleSheet.create({
     justifyContent: "center",
   },
   btnDone: { backgroundColor: colors.primary, borderColor: colors.primary },
+  btnOnSelected: { backgroundColor: colors.surface, borderColor: colors.primary },
 });
 
 export function BuildScreen({
@@ -352,6 +355,7 @@ export function BuildScreen({
                         placeholder="Item name"
                         autoCapitalize="words"
                         autoFocus
+                        style={mine ? { backgroundColor: colors.surface } : undefined}
                       />
                       <PrefixField
                         prefix="$"
@@ -359,6 +363,7 @@ export function BuildScreen({
                         onChangeText={(t) => changePrice(item.id, t)}
                         placeholder="0.00"
                         keyboardType="decimal-pad"
+                        containerStyle={mine ? { backgroundColor: colors.surface } : undefined}
                       />
                     </View>
                   ) : (
@@ -385,6 +390,7 @@ export function BuildScreen({
                 )}
                 <RowActions
                   active={editing}
+                  selected={mine}
                   onOpen={() => enterEdit(item)}
                   onSplit={() => openSplit(item)}
                   onDone={exitEdit}
