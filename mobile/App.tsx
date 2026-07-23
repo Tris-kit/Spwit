@@ -1,7 +1,14 @@
 // Spwit — receipt tab splitter. Flow: start → build → tax/tip → totals.
 // Start also branches out to Profile, Contacts, and History.
 import React, { useEffect, useState } from "react";
-import { Platform, SafeAreaView, StatusBar, StyleSheet, View } from "react-native";
+import {
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { Assignments, Charges, Item, Person, SavedReceipt } from "./src/types";
 import { makeId } from "./src/util";
 import {
@@ -236,11 +243,17 @@ export default function App() {
     saveHistory(next);
   };
 
+  const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
+  // Wide viewports (desktop web) get a floating app panel instead of a
+  // full-height phone-width column. Mobile web (< 768) is unchanged.
+  const isDesktop = isWeb && width >= 768;
 
   const shell = (children: React.ReactNode) => (
-    <View style={[styles.outer, isWeb && styles.outerWeb]}>
-      <SafeAreaView style={[styles.root, isWeb && styles.rootWeb]}>
+    <View style={[styles.outer, isWeb && styles.outerWeb, isDesktop && styles.outerDesktop]}>
+      <SafeAreaView
+        style={[styles.root, isWeb && styles.rootWeb, isDesktop && styles.rootDesktop]}
+      >
         <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
         {children}
       </SafeAreaView>
@@ -356,5 +369,22 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: colors.border,
+  },
+  // Desktop web: center a floating, rounded app panel (not a full-height phone).
+  outerDesktop: {
+    justifyContent: "center",
+    paddingVertical: 32,
+  },
+  rootDesktop: {
+    maxWidth: 600,
+    maxHeight: 900,
+    borderWidth: 1,
+    borderRadius: 24,
+    borderColor: colors.border,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
   },
 });

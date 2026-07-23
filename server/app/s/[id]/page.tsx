@@ -50,6 +50,7 @@ export default async function SharePage({
       bill={stored.bill}
       unpaid={stored.unpaid}
       receiptImageUrl={stored.receiptImageUrl}
+      shareId={id}
     />
   );
 }

@@ -375,6 +375,26 @@ export function Field(props: TextInputProps) {
   );
 }
 
+// A field with a fixed, non-editable prefix shown inside the box (e.g. "@" for a
+// Venmo handle). The prefix is decorative — it's never part of the typed value,
+// so it can't be selected or deleted.
+export function PrefixField({
+  prefix,
+  containerStyle,
+  ...props
+}: TextInputProps & { prefix: string; containerStyle?: ViewStyle }) {
+  return (
+    <View style={[styles.prefixField, containerStyle]}>
+      <Text style={styles.prefixText}>{prefix}</Text>
+      <TextInput
+        placeholderTextColor={colors.textDim}
+        {...props}
+        style={[styles.prefixInput, props.style]}
+      />
+    </View>
+  );
+}
+
 export function Avatar({
   name,
   color,
@@ -440,5 +460,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  prefixField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing(2),
+    height: 48,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  prefixText: { color: colors.text, fontSize: 16 },
+  prefixInput: {
+    flex: 1,
+    height: "100%",
+    color: colors.text,
+    fontSize: 16,
+    paddingVertical: 0,
   },
 });

@@ -66,3 +66,23 @@ export async function deleteBill(id: string): Promise<void> {
   const c = await db();
   await c.execute({ sql: "DELETE FROM bills WHERE id = ?", args: [id] });
 }
+
+/**
+ * Public, low-privilege action: a payer marks themselves paid (no edit token).
+ * Removes the person from `unpaid`; if the bill wasn't tracking yet, seeds it
+ * with everyone who owes (non-owner) so the rest still show as unpaid.
+ * Returns the updated bill, or null if not found.
+ */
+export async function markPaid(id: string, personId: string): Promise<StoredBill | null> {
+  const existing = await getBill(id);
+  if (!existing) return null;
+  const owing = existing.bill.people.filter((p) => !p.isMe).map((p) => p.id);
+  const current = existing.unpaid ?? owing;
+  const updated: StoredBill = {
+    ...existing,
+    unpaid: current.filter((pid) => pid !== personId),
+    updatedAtISO: new Date().toISOString(),
+  };
+  await updateBill(updated);
+  return updated;
+}

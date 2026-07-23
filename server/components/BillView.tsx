@@ -10,10 +10,14 @@ export function BillView({
   bill,
   unpaid,
   receiptImageUrl,
+  shareId,
 }: {
   bill: Bill;
   unpaid?: string[];
   receiptImageUrl?: string | null;
+  // When set (DB-backed /s pages), pay links route through /s/:id/pay so the
+  // payer is marked paid before redirecting to Venmo.
+  shareId?: string;
 }) {
   const breakdown = computeBreakdown(bill);
   const unpaidSet = new Set(unpaid ?? []);
@@ -101,7 +105,11 @@ export function BillView({
                     {ownerVenmo && (
                       <a
                         style={styles.payBtn}
-                        href={venmoLink(ownerVenmo, pb.totalCents, payNote)}
+                        href={
+                          shareId
+                            ? `/s/${shareId}/pay?p=${pb.person.id}`
+                            : venmoLink(ownerVenmo, pb.totalCents, payNote)
+                        }
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -142,7 +150,7 @@ export function BillView({
             rel="noreferrer"
             style={styles.coffee}
           >
-            ☕ Buy me a coffee ($5)
+            ☕ Buy me a coffee
           </a>
           <div style={styles.footerNote}>Split with Spwit</div>
         </footer>

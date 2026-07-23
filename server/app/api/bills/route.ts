@@ -10,7 +10,7 @@ import { isValidBill } from "@/lib/validate";
 import { editToken, shortId } from "@/lib/ids";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { error, json, originFrom, preflight } from "@/lib/http";
-import { StoredBill } from "@/lib/types";
+import { Bill, StoredBill } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -38,11 +38,16 @@ export async function POST(req: Request) {
   const token = editToken();
   const nowISO = new Date().toISOString();
 
+  // Start paid-tracking with everyone who owes (non-owner) marked unpaid, so the
+  // share page shows status from the start and payers flip themselves to paid.
+  const bill = body.bill as Bill;
+  const defaultUnpaid = bill.people.filter((p) => !p.isMe).map((p) => p.id);
+
   const stored: StoredBill = {
     id,
     bill: body.bill,
     receiptImageUrl: body.receiptImageUrl ?? null,
-    unpaid: Array.isArray(body.unpaid) ? body.unpaid : undefined,
+    unpaid: Array.isArray(body.unpaid) ? body.unpaid : defaultUnpaid,
     createdAtISO: nowISO,
     updatedAtISO: nowISO,
   };

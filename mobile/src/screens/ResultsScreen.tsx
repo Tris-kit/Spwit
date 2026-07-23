@@ -14,11 +14,13 @@ import {
   Text,
   View,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import QRCode from "react-native-qrcode-svg";
 import { Bill, Person } from "../types";
 import { computeBreakdown, toDollars } from "../split";
 import { sendGroupText } from "../sms";
 import { promptText } from "../prompt";
-import { canShareBreakdown, shareBreakdown } from "../shareLink";
+import { buildShareUrl, canShareBreakdown, shareBreakdown } from "../shareLink";
 import { shareBill, shortUrl, updateSharedBill } from "../backend";
 import { Avatar, Card, Icon, type IconName } from "../ui";
 import { colors, radius, spacing } from "../theme";
@@ -83,6 +85,30 @@ function FooterAction({
   );
 }
 
+// One row in the Share bubble (an icon + label).
+function ShareOption({
+  icon,
+  label,
+  onPress,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.menuRow, pressed && { opacity: 0.6 }]}
+    >
+      <View style={styles.menuIcon}>{icon}</View>
+      <Text style={[styles.menuLabel, disabled && { color: colors.textFaint }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function ResultsScreen({
   bill,
   me,
@@ -113,6 +139,12 @@ export function ResultsScreen({
   const [viewingPhoto, setViewingPhoto] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(shareId ? shortUrl(shareId) : null);
   const [sharing, setSharing] = useState(false);
+  const [shareMenu, setShareMenu] = useState(false); // the Share bubble (QR / Link / Message)
+  const [qrVisible, setQrVisible] = useState(false);
+
+  // Best link to encode in the QR: the short link if ready, else the
+  // self-contained /v# link so the QR always works.
+  const qrValue = shareUrl ?? buildShareUrl(bill);
 
   // On opening the breakdown, get the short link ready: reuse the stored one (and
   // refresh its content in the background), or create it — with a spinner on the
@@ -243,11 +275,14 @@ export function ResultsScreen({
       <ScrollView
         contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(12) }}
       >
+        <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
+          <Icon name="chevron-left" size={28} color={colors.primary} />
+        </Pressable>
         <View style={styles.headerRow}>
-          <Pressable onPress={onBack} hitSlop={8} style={{ flex: 1 }}>
-            <Text style={styles.h1}>‹ Breakdown</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h1}>Breakdown</Text>
             {bill.name ? <Text style={styles.subName}>{bill.name}</Text> : null}
-          </Pressable>
+          </View>
           {receiptImage && (
             <Pressable onPress={() => setViewingPhoto(true)} hitSlop={8} style={styles.viewPhotoBtn}>
               <Icon name="file-text" size={14} color={colors.primary} />
@@ -345,18 +380,7 @@ export function ResultsScreen({
       <View style={styles.footer}>
         <View style={styles.actionRow}>
           <FooterAction icon="edit-2" label="Edit" onPress={onEdit} />
-          <FooterAction
-            icon="link"
-            label="Link"
-            onPress={() => shareBreakdown(bill, shareUrl ?? undefined).catch(() => {})}
-            disabled={!canShareBreakdown()}
-          />
-          <FooterAction
-            icon={Platform.OS === "web" ? "share" : "message-square"}
-            label={Platform.OS === "web" ? "Share" : "Text"}
-            onPress={textEveryone}
-            loading={sharing}
-          />
+          <FooterAction icon="share-2" label="Share" onPress={() => setShareMenu(true)} />
           <FooterAction
             icon="home"
             label={fromHistory ? "Done" : "Home"}
@@ -380,6 +404,68 @@ export function ResultsScreen({
             />
           )}
           <Text style={styles.photoClose}>Tap to close</Text>
+        </Pressable>
+      </Modal>
+
+      {/* Share bubble: QR Code · Link · Message */}
+      <Modal
+        visible={shareMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShareMenu(false)}
+      >
+        <Pressable style={styles.menuBackdrop} onPress={() => setShareMenu(false)}>
+          <View style={styles.menuCard}>
+            <ShareOption
+              icon={<MaterialCommunityIcons name="qrcode" size={22} color={colors.primary} />}
+              label="QR Code"
+              onPress={() => {
+                setShareMenu(false);
+                setQrVisible(true);
+              }}
+            />
+            <View style={styles.menuDivider} />
+            <ShareOption
+              icon={<Icon name="link" size={22} color={colors.primary} />}
+              label="Link"
+              disabled={!canShareBreakdown()}
+              onPress={() => {
+                setShareMenu(false);
+                shareBreakdown(bill, shareUrl ?? undefined).catch(() => {});
+              }}
+            />
+            <View style={styles.menuDivider} />
+            <ShareOption
+              icon={<Icon name="message-circle" size={22} color={colors.primary} />}
+              label="Message"
+              onPress={() => {
+                setShareMenu(false);
+                textEveryone();
+              }}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* QR code for the breakdown link */}
+      <Modal
+        visible={qrVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQrVisible(false)}
+      >
+        <Pressable style={styles.qrBackdrop} onPress={() => setQrVisible(false)}>
+          <View style={styles.qrCard}>
+            <Text style={styles.qrTitle}>Scan to open the split</Text>
+            <View style={styles.qrBox}>
+              <QRCode value={qrValue} size={228} color={colors.text} backgroundColor={colors.surface} />
+            </View>
+            <Text style={styles.qrSub}>
+              {bill.name?.trim() ? `${bill.name.trim()} · ` : ""}$
+              {toDollars(breakdown.grandTotalCents)}
+            </Text>
+            <Text style={styles.qrClose}>Tap anywhere to close</Text>
+          </View>
         </Pressable>
       </Modal>
     </View>
@@ -494,6 +580,12 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.bg,
   },
+  backBtn: {
+    alignSelf: "flex-start",
+    marginLeft: -4,
+    marginBottom: spacing(0.5),
+    padding: spacing(0.5),
+  },
   actionRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -508,6 +600,62 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   actionLabel: { color: colors.primary, fontSize: 12, fontWeight: "600" },
+  // Share bubble
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: colors.scrimSoft,
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingBottom: spacing(12),
+  },
+  menuCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 240,
+    paddingVertical: spacing(0.5),
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing(1.5),
+    paddingVertical: spacing(1.75),
+    paddingHorizontal: spacing(2.5),
+  },
+  menuIcon: { width: 24, alignItems: "center" },
+  menuLabel: { color: colors.text, fontSize: 16, fontWeight: "600" },
+  menuDivider: { height: 1, backgroundColor: colors.border, marginLeft: spacing(2.5) },
+  // QR modal
+  qrBackdrop: {
+    flex: 1,
+    backgroundColor: colors.scrimSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing(3),
+  },
+  qrCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing(3),
+    alignItems: "center",
+    maxWidth: 340,
+    width: "100%",
+  },
+  qrTitle: { color: colors.text, fontSize: 18, fontWeight: "800", marginBottom: spacing(2) },
+  qrBox: {
+    backgroundColor: colors.surface,
+    padding: spacing(2),
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  qrSub: { color: colors.textDim, fontSize: 15, fontWeight: "600", marginTop: spacing(2) },
+  qrClose: { color: colors.textFaint, fontSize: 12, marginTop: spacing(1.5) },
   modalWrap: { flex: 1, justifyContent: "flex-end", backgroundColor: colors.scrimSoft },
   sheet: {
     backgroundColor: colors.surface,

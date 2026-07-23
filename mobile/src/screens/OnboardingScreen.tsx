@@ -2,7 +2,7 @@
 // (optional). Shown once, before the rest of the app, when no profile is saved.
 import React, { useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button, Field } from "../ui";
+import { Button, Field, PrefixField } from "../ui";
 import { colors, spacing } from "../theme";
 
 export function OnboardingScreen({
@@ -49,17 +49,14 @@ export function OnboardingScreen({
       <Text style={styles.label}>
         Venmo <Text style={styles.optional}>(optional)</Text>
       </Text>
-      <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <Text style={styles.at}>@</Text>
-        <Field
-          value={venmo}
-          onChangeText={setVenmo}
-          placeholder="your-venmo"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={{ flex: 1 }}
-        />
-      </View>
+      <PrefixField
+        prefix="@"
+        value={venmo}
+        onChangeText={setVenmo}
+        placeholder="your-venmo"
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
       <Text style={styles.hint}>So people can pay you back with one tap.</Text>
 
       <Text style={styles.label}>
@@ -110,7 +107,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing(0.5),
   },
   optional: { color: colors.textFaint, fontWeight: "400" },
-  at: { color: colors.textDim, fontSize: 18, marginRight: spacing(1) },
   hint: { color: colors.textDim, fontSize: 12, marginTop: spacing(0.5) },
   foot: {
     color: colors.textFaint,

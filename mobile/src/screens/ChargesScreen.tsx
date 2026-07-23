@@ -46,11 +46,14 @@ export function ChargesScreen({
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}>
+        <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
+          <Icon name="chevron-left" size={28} color={colors.primary} />
+        </Pressable>
         <View style={styles.headerRow}>
-          <Pressable onPress={onBack} hitSlop={8} style={{ flex: 1 }}>
-            <Text style={styles.h1}>‹ Tax & Tip</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h1}>Tax & Tip</Text>
             {billName.trim() ? <Text style={styles.subtitle}>{billName.trim()}</Text> : null}
-          </Pressable>
+          </View>
           {receiptImage && (
             <Pressable onPress={() => setViewingPhoto(true)} hitSlop={8} style={styles.viewPhotoBtn}>
               <Icon name="file-text" size={14} color={colors.primary} />
@@ -145,6 +148,12 @@ function Row({ label, value, bold }: { label: string; value: number; bold?: bool
 }
 
 const styles = StyleSheet.create({
+  backBtn: {
+    alignSelf: "flex-start",
+    marginLeft: -4,
+    marginBottom: spacing(0.5),
+    padding: spacing(0.5),
+  },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   viewPhotoBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   viewPhoto: { color: colors.primary, fontSize: 14, fontWeight: "600" },

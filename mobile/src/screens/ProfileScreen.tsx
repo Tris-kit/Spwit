@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Person } from "../types";
-import { AvatarNameRow, AvatarStyleControls, Field } from "../ui";
+import { AvatarNameRow, AvatarStyleControls, Field, PrefixField } from "../ui";
 import { colors, personColors, spacing } from "../theme";
 
 export function ProfileScreen({
@@ -66,17 +66,14 @@ export function ProfileScreen({
         <Field value={phone} onChangeText={setPhone} placeholder="Your phone number" keyboardType="phone-pad" />
 
         <Text style={styles.label}>Venmo handle</Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text style={styles.at}>@</Text>
-          <Field
-            value={venmo}
-            onChangeText={setVenmo}
-            placeholder="your-venmo"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={{ flex: 1 }}
-          />
-        </View>
+        <PrefixField
+          prefix="@"
+          value={venmo}
+          onChangeText={setVenmo}
+          placeholder="your-venmo"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
         <Text style={styles.hint}>Used to add a "Pay me on Venmo" link when you text people.</Text>
 
         <Text style={styles.label}>Zelle (phone or email)</Text>
@@ -116,6 +113,5 @@ const styles = StyleSheet.create({
   headerSpacer: { width: 60 },
   h1: { color: colors.text, fontSize: 20, fontWeight: "800" },
   label: { color: colors.textDim, fontSize: 14, marginTop: spacing(2), marginBottom: spacing(0.5) },
-  at: { color: colors.textDim, fontSize: 18, marginRight: spacing(1) },
   hint: { color: colors.textDim, fontSize: 12, marginTop: spacing(0.5) },
 });
