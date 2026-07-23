@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Pressable,
   StyleSheet,
@@ -12,7 +13,7 @@ import {
 } from "react-native";
 import { captureReceipt, scanReceipt } from "../scan";
 import { Person } from "../types";
-import { Avatar, CatLogo, Icon } from "../ui";
+import { Avatar, Icon } from "../ui";
 import { colors, radius, spacing } from "../theme";
 
 export function StartScreen({
@@ -82,7 +83,11 @@ export function StartScreen({
 
       <View style={styles.hero}>
         <View style={styles.mascot}>
-          <CatLogo size={64} color={colors.primary} />
+          <Image
+            source={require("../../assets/logo.png")}
+            style={{ width: 68, height: 68 }}
+            resizeMode="contain"
+          />
         </View>
         <Text style={styles.title}>Spwit</Text>
         <Text style={styles.subtitle}>
@@ -92,7 +97,7 @@ export function StartScreen({
 
       {busy ? (
         <View style={styles.bigBtn}>
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={colors.onPrimary} />
           <Text style={styles.bigBtnText}>Reading receipt…</Text>
         </View>
       ) : (
@@ -100,7 +105,7 @@ export function StartScreen({
           style={({ pressed }) => [styles.bigBtn, pressed && { opacity: 0.9 }]}
           onPress={() => run(true)}
         >
-          <Icon name="camera" size={34} color="#fff" />
+          <Icon name="camera" size={34} color={colors.onPrimary} />
           <Text style={styles.bigBtnText}>Split a bill</Text>
         </Pressable>
       )}
@@ -119,7 +124,7 @@ export function StartScreen({
 
       <Pressable onPress={openTip} hitSlop={6} style={styles.tipRow}>
         <Text style={styles.tip}>Like Spwit? Buy me a coffee to keep it free.</Text>
-        <Icon name="external-link" size={11} color="#C7B8AB" />
+        <Icon name="external-link" size={11} color={colors.textFaint} />
       </Pressable>
     </View>
   );
@@ -177,7 +182,7 @@ const styles = StyleSheet.create({
     gap: spacing(1),
     minHeight: 130,
   },
-  bigBtnText: { color: "#fff", fontSize: 22, fontWeight: "800" },
+  bigBtnText: { color: colors.onPrimary, fontSize: 22, fontWeight: "800" },
   secondaryRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -194,5 +199,5 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: spacing(2),
   },
-  tip: { color: "#C7B8AB", fontSize: 11 },
+  tip: { color: colors.textFaint, fontSize: 11 },
 });

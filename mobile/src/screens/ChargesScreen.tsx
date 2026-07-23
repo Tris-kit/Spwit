@@ -84,7 +84,7 @@ export function ChargesScreen({
                 onPress={() => setCharges({ ...charges, tipMode: "percent", tipPercent: pct })}
                 style={[styles.tipChip, active && styles.tipChipActive]}
               >
-                <Text style={[styles.tipChipText, active && { color: "#fff" }]}>{pct}%</Text>
+                <Text style={[styles.tipChipText, active && { color: colors.onPrimary }]}>{pct}%</Text>
               </Pressable>
             );
           })}
@@ -148,9 +148,9 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   viewPhotoBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   viewPhoto: { color: colors.primary, fontSize: 14, fontWeight: "600" },
-  photoWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" },
+  photoWrap: { flex: 1, backgroundColor: colors.scrim, alignItems: "center", justifyContent: "center" },
   photoFull: { width: "92%", height: "80%" },
-  photoClose: { color: "#fff", marginTop: spacing(2), fontSize: 15 },
+  photoClose: { color: colors.onPrimary, marginTop: spacing(2), fontSize: 15 },
   h1: { color: colors.text, fontSize: 28, fontWeight: "800" },
   subtitle: { color: colors.textDim, fontSize: 15, fontWeight: "600", marginTop: 2 },
   h2: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: spacing(2.5), marginBottom: spacing(1) },

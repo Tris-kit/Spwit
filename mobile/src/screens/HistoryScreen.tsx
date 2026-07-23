@@ -8,7 +8,7 @@ import { computeBreakdown, toDollars } from "../split";
 import { Avatar, Button, Card, Icon, SwipeRow, SwipeRowHandle } from "../ui";
 import { canShareBreakdown, shareBreakdown } from "../shareLink";
 import { shortUrl } from "../backend";
-import { colors, radius, spacing } from "../theme";
+import { colors, radius, spacing, withAlpha } from "../theme";
 
 function formatDate(iso: string): string {
   try {
@@ -55,7 +55,7 @@ export function HistoryScreen({
   const [pulseId, setPulseId] = useState<string | null>(null);
   const pulseColor = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: ["rgba(234,88,12,0)", "rgba(234,88,12,1)"], // colors.primary
+    outputRange: [withAlpha(colors.primary, 0), withAlpha(colors.primary, 1)],
   });
 
   // Navigated here to focus a bill (from Contacts): expand it, scroll it into
@@ -213,7 +213,7 @@ export function HistoryScreen({
                                     hitSlop={8}
                                     style={[styles.check, paid && styles.checkOn]}
                                   >
-                                    {paid && <Icon name="check" size={13} color="#fff" />}
+                                    {paid && <Icon name="check" size={13} color={colors.onPrimary} />}
                                   </Pressable>
                                 )}
                               </View>
@@ -333,10 +333,10 @@ const styles = StyleSheet.create({
   },
   photoWrap: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.92)",
+    backgroundColor: colors.scrim,
     alignItems: "center",
     justifyContent: "center",
   },
   photoFull: { width: "92%", height: "80%" },
-  photoClose: { color: "#fff", marginTop: spacing(2), fontSize: 15 },
+  photoClose: { color: colors.onPrimary, marginTop: spacing(2), fontSize: 15 },
 });

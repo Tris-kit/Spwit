@@ -8,9 +8,11 @@
   --text-dim: #937b69;
   --primary: #ea580c;
   --primary-dim: #fdba8c;
+  --on-primary: #ffffff; /* text/icons on primary or colored fills */
   --success: #16a34a;
   --warning: #d97706;
   --warning-tint: #fef3e2;
+  --warning-border: #f5d9b0; /* border for warning-tint cards */
 }
 
 * {

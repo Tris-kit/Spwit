@@ -29,7 +29,11 @@ export function BillView({
     <main style={styles.page}>
       <div style={styles.container}>
         <header style={styles.header}>
-          <div style={styles.brand}>Spwit</div>
+          <div style={styles.brand}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="" width={22} height={22} style={{ display: "block" }} />
+            <span>Spwit</span>
+          </div>
           <h1 style={styles.title}>{bill.name?.trim() || "Your split"}</h1>
           <div style={styles.subtitle}>
             {money(breakdown.grandTotalCents)} · {bill.people.length}{" "}
@@ -54,7 +58,7 @@ export function BillView({
             return (
               <div key={pb.person.id} style={styles.card}>
                 <div style={styles.cardHead}>
-                  <div style={{ ...styles.avatar, background: pb.person.color || "#FDBA8C" }}>
+                  <div style={{ ...styles.avatar, background: pb.person.color || "var(--primary-dim)" }}>
                     {avatarLabel(pb.person)}
                   </div>
                   <div style={styles.who}>
@@ -161,6 +165,10 @@ const styles: Record<string, React.CSSProperties> = {
   container: { maxWidth: 560, margin: "0 auto" },
   header: { textAlign: "center", marginBottom: 20 },
   brand: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
     color: "var(--primary)",
     fontWeight: 800,
     letterSpacing: 0.5,
@@ -172,7 +180,7 @@ const styles: Record<string, React.CSSProperties> = {
   warning: {
     background: "var(--warning-tint)",
     color: "var(--warning)",
-    border: "1px solid #f5d9b0",
+    border: "1px solid var(--warning-border)",
     borderRadius: 12,
     padding: "10px 14px",
     fontSize: 14,
@@ -194,7 +202,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 700,
-    color: "#26190f",
+    color: "var(--text)",
     fontSize: 16,
     flexShrink: 0,
   },
@@ -232,7 +240,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "block",
     textAlign: "center",
     background: "var(--primary)",
-    color: "#fff",
+    color: "var(--on-primary)",
     fontWeight: 700,
     padding: "10px 14px",
     borderRadius: 12,

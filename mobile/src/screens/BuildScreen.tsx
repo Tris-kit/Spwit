@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: radius.sm,
   },
-  tipText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  tipText: { color: colors.onPrimary, fontSize: 12, fontWeight: "700" },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -783,11 +783,11 @@ const styles = StyleSheet.create({
   },
   addPlus: { color: colors.primary, fontSize: 20, fontWeight: "800" },
   // photo viewer
-  photoWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" },
+  photoWrap: { flex: 1, backgroundColor: colors.scrim, alignItems: "center", justifyContent: "center" },
   photoFull: { width: "92%", height: "80%" },
-  photoClose: { color: "#fff", marginTop: spacing(2), fontSize: 15 },
+  photoClose: { color: colors.onPrimary, marginTop: spacing(2), fontSize: 15 },
   // modals
-  modalWrap: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalWrap: { flex: 1, justifyContent: "flex-end", backgroundColor: colors.scrimSoft },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.lg,
@@ -798,7 +798,7 @@ const styles = StyleSheet.create({
   fieldLabel: { color: colors.textDim, fontSize: 14, marginTop: spacing(1.5), marginBottom: spacing(0.5) },
   personPreview: { alignItems: "center", marginBottom: spacing(1.5) },
   swatchRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1) },
-  swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, borderColor: "transparent" },
+  swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, borderColor: colors.transparent },
   swatchOn: { borderColor: colors.text },
   suggestions: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1), marginTop: spacing(1) },
   suggestChip: {
@@ -822,7 +822,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "transparent",
+    borderColor: colors.transparent,
   },
   emojiBtnOn: { borderColor: colors.primary },
   noneText: { color: colors.textDim, fontSize: 15, fontWeight: "700" },

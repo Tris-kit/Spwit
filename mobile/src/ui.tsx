@@ -108,7 +108,7 @@ export function AvatarNameRow({
       <Pressable onPress={choose} style={aeStyles.avatarWrap}>
         <Avatar name={name || "?"} color={color} emoji={emoji} photo={photo} size={60} />
         <View style={aeStyles.badge}>
-          <Icon name="camera" size={12} color="#fff" />
+          <Icon name="camera" size={12} color={colors.onPrimary} />
         </View>
       </Pressable>
       <Field
@@ -186,7 +186,7 @@ const aeStyles = StyleSheet.create({
   },
   label: { color: colors.textDim, fontSize: 14, marginTop: spacing(1.5), marginBottom: spacing(0.5) },
   swatchRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1) },
-  swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, borderColor: "transparent" },
+  swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, borderColor: colors.transparent },
   swatchOn: { borderColor: colors.text },
 });
 
@@ -200,7 +200,7 @@ const emojiStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "transparent",
+    borderColor: colors.transparent,
   },
   btnOn: { borderColor: colors.primary },
   none: { color: colors.textDim, fontSize: 15, fontWeight: "700" },
@@ -308,7 +308,7 @@ const swipeStyles = StyleSheet.create({
     justifyContent: "center",
   },
   btn: { width: 88, height: "100%", alignItems: "center", justifyContent: "center" },
-  btnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  btnText: { color: colors.onPrimary, fontWeight: "800", fontSize: 15 },
 });
 
 export function Button({
@@ -333,8 +333,8 @@ export function Button({
         : colors.primary
       : variant === "secondary"
         ? colors.surfaceAlt
-        : "transparent";
-  const fg = variant === "primary" ? "#fff" : colors.text;
+        : colors.transparent;
+  const fg = variant === "primary" ? colors.onPrimary : colors.text;
   return (
     <Pressable
       onPress={onPress}

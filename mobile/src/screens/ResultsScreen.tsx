@@ -390,12 +390,12 @@ const styles = StyleSheet.create({
   viewPhoto: { color: colors.primary, fontSize: 14, fontWeight: "600" },
   photoWrap: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.92)",
+    backgroundColor: colors.scrim,
     alignItems: "center",
     justifyContent: "center",
   },
   photoFull: { width: "92%", height: "80%" },
-  photoClose: { color: "#fff", marginTop: spacing(2), fontSize: 15 },
+  photoClose: { color: colors.onPrimary, marginTop: spacing(2), fontSize: 15 },
   h2: { color: colors.text, fontSize: 18, fontWeight: "700" },
   summaryRow: {
     flexDirection: "row",
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.warning,
   },
-  warnText: { color: "#9A3412", fontSize: 14 },
+  warnText: { color: colors.warningText, fontSize: 14 },
   footer: {
     padding: spacing(2),
     borderTopWidth: 1,
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
   linkRight: { flex: 1, alignItems: "flex-end" },
   footerLinkRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   footerLink: { color: colors.primary, fontSize: 14, fontWeight: "600" },
-  modalWrap: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalWrap: { flex: 1, justifyContent: "flex-end", backgroundColor: colors.scrimSoft },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.lg,

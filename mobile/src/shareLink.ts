@@ -3,7 +3,7 @@
 // any browser — no account, no server storage. Compression keeps even large
 // bills to ~1KB. Must stay in sync with the backend's lib/billCodec.ts.
 import { deflateRaw } from "pako";
-import { Share } from "react-native";
+import { Alert, Platform, Share } from "react-native";
 import { Bill } from "./types";
 import { shareBill } from "./backend";
 
@@ -70,6 +70,33 @@ export async function bestShareUrl(bill: Bill): Promise<string> {
 /** Open the OS share sheet with a link to the breakdown (uses `url` if given). */
 export async function shareBreakdown(bill: Bill, url?: string): Promise<void> {
   const link = url ?? (await bestShareUrl(bill));
+
+  // Web: share/copy just the link. The browser's navigator.share concatenates
+  // text + url, which would show the title and the link twice — so send only the
+  // url, and fall back to copying the bare link.
+  if (Platform.OS === "web") {
+    const nav: any = typeof navigator !== "undefined" ? navigator : undefined;
+    try {
+      if (nav?.share) {
+        await nav.share({ url: link });
+        return;
+      }
+    } catch {
+      // user cancelled, or share unsupported — fall through to clipboard
+    }
+    try {
+      if (nav?.clipboard?.writeText) {
+        await nav.clipboard.writeText(link);
+        Alert.alert("Link copied", "The split link was copied to your clipboard.");
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    Alert.alert("Share link", link);
+    return;
+  }
+
   const title = bill.name?.trim() ? `Spwit split — ${bill.name.trim()}` : "Spwit split";
   await Share.share({ message: `${title}\n${link}`, url: link });
 }
