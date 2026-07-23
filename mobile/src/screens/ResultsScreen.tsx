@@ -7,6 +7,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -147,6 +148,13 @@ export function ResultsScreen({
   };
 
   const textEveryone = () => {
+    // Web can't open Messages and web people have no phone numbers — just share
+    // the summary (native share sheet / copy) instead of gating on recipients.
+    if (Platform.OS === "web") {
+      void sendGroupText([], buildBody(shareUrl ?? undefined));
+      return;
+    }
+
     const recipients = bill.people
       .filter((p) => !p.isMe && p.phone)
       .map((p) => p.phone as string);
@@ -300,7 +308,11 @@ export function ResultsScreen({
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button title="Text everyone their total" onPress={textEveryone} loading={sharing} />
+        <Button
+          title={Platform.OS === "web" ? "Share the totals" : "Text everyone their total"}
+          onPress={textEveryone}
+          loading={sharing}
+        />
         <View style={styles.footerLinks}>
           <Pressable onPress={onEdit} hitSlop={8} style={[styles.footerLinkRow, styles.linkLeft]}>
             <Icon name="edit-2" size={14} color={colors.primary} />
