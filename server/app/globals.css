@@ -1,0 +1,35 @@
+/* Spwit web — warm light theme mirroring the app's src/theme.ts */
+:root {
+  --bg: #fff9f4;
+  --surface: #ffffff;
+  --surface-alt: #ffeddf;
+  --border: #f1e2d5;
+  --text: #26190f;
+  --text-dim: #937b69;
+  --primary: #ea580c;
+  --primary-dim: #fdba8c;
+  --success: #16a34a;
+  --warning: #d97706;
+  --warning-tint: #fef3e2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
