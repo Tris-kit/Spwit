@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Spwit backend — OCR proxy + shareable bill links (Next.js on Vercel).",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

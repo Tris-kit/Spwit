@@ -21,7 +21,13 @@ const distDir = join(mobileDir, "dist");
 const publicDir = join(serverDir, "public");
 const pwaDir = join(serverDir, "pwa");
 
-const run = (cmd, cwd) => execSync(cmd, { cwd, stdio: "inherit" });
+const run = (cmd, cwd) =>
+  execSync(cmd, {
+    cwd,
+    stdio: "inherit",
+    // Give Metro plenty of heap on constrained CI containers.
+    env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --max-old-space-size=4096`.trim() },
+  });
 
 // Mobile keeps its own node_modules (no workspace hoisting). Install only if
 // missing (i.e. on CI / Vercel); skip when already installed locally.
