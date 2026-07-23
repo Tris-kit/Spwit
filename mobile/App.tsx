@@ -29,6 +29,7 @@ import { ResultsScreen } from "./src/screens/ResultsScreen";
 import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { ContactsScreen } from "./src/screens/ContactsScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
+import { SwipeBackView } from "./src/ui";
 import { colors, personColors } from "./src/theme";
 
 type Step =
@@ -256,13 +257,28 @@ export default function App() {
   // full-height phone-width column. Mobile web (< 768) is unchanged.
   const isDesktop = isWeb && width >= 768;
 
+  // Edge-swipe-back mirrors each screen's back button. Start/Profile are omitted
+  // (Start has no back; Profile saves via its own back button).
+  const backHandler =
+    step === "build"
+      ? () => setStep(editingBill ? "results" : "start")
+      : step === "charges"
+        ? () => setStep("build")
+        : step === "results"
+          ? () => (billFromHistory ? leaveResults("history") : setStep("charges"))
+          : step === "contacts" || step === "history"
+            ? () => setStep("start")
+            : undefined;
+
   const shell = (children: React.ReactNode) => (
     <View style={[styles.outer, isWeb && styles.outerWeb, isDesktop && styles.outerDesktop]}>
       <SafeAreaView
         style={[styles.root, isWeb && styles.rootWeb, isDesktop && styles.rootDesktop]}
       >
         <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
-        {children}
+        <SwipeBackView onBack={backHandler} style={{ flex: 1 }}>
+          {children}
+        </SwipeBackView>
       </SafeAreaView>
     </View>
   );

@@ -97,6 +97,7 @@ export async function shareBreakdown(bill: Bill, url?: string): Promise<void> {
     return;
   }
 
-  const title = bill.name?.trim() ? `Spwit split — ${bill.name.trim()}` : "Spwit split";
-  await Share.share({ message: `${title}\n${link}`, url: link });
+  // Native: open the OS share sheet with just the bare link, so Messages /
+  // AirDrop / Copy all get a clean URL. iOS uses `url`; Android uses `message`.
+  await Share.share(Platform.OS === "ios" ? { url: link } : { message: link });
 }

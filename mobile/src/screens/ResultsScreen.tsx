@@ -1,11 +1,12 @@
 // Step 4: the breakdown — what each person owes, with an itemized view. From
 // here you can fill in missing phone numbers and text everyone their total plus
 // a Venmo link to pay you.
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  LayoutAnimation,
   Modal,
   Platform,
   Pressable,
@@ -19,38 +20,10 @@ import QRCode from "react-native-qrcode-svg";
 import { Bill, Person } from "../types";
 import { computeBreakdown, toDollars } from "../split";
 import { sendGroupText } from "../sms";
-import { promptText } from "../prompt";
 import { buildShareUrl, canShareBreakdown, shareBreakdown } from "../shareLink";
 import { fetchSharedBill, isBackendEnabled, shareBill, shortUrl, updateSharedBill } from "../backend";
-import { Avatar, Card, Icon, type IconName } from "../ui";
+import { Avatar, Card, Icon, PersonTray, type IconName } from "../ui";
 import { colors, radius, spacing } from "../theme";
-
-// For the group text: show first names, disambiguating collisions with a last
-// initial — or the full last name if the initial also collides.
-function textNames(people: Person[]): Record<string, string> {
-  const parts = (n: string) => {
-    const t = n.trim().split(/\s+/).filter(Boolean);
-    return { first: t[0] ?? n.trim(), last: t.slice(1).join(" ") };
-  };
-  const names: Record<string, string> = {};
-  for (const p of people) {
-    const { first, last } = parts(p.name);
-    const sharesFirst = people.filter(
-      (q) => parts(q.name).first.toLowerCase() === first.toLowerCase(),
-    );
-    if (sharesFirst.length <= 1 || !last) {
-      names[p.id] = first;
-      continue;
-    }
-    const initial = last[0].toUpperCase();
-    const sharesInitial = sharesFirst.filter((q) => {
-      const ql = parts(q.name).last;
-      return !!ql && ql[0].toUpperCase() === initial;
-    });
-    names[p.id] = sharesInitial.length <= 1 ? `${first} ${initial}` : `${first} ${last}`;
-  }
-  return names;
-}
 
 // One footer action: an icon above a small label. Used for Edit · Link · Text · Home.
 function FooterAction({
@@ -145,6 +118,16 @@ export function ResultsScreen({
   const [sharing, setSharing] = useState(false);
   const [shareMenu, setShareMenu] = useState(false); // the Share bubble (QR / Link / Message)
   const [qrVisible, setQrVisible] = useState(false);
+  const [editPerson, setEditPerson] = useState<Person | null>(null); // edit-person modal
+
+  // Actions picked from the Share bubble must run AFTER it closes — iOS can't
+  // present the share sheet / open Messages while a modal is still dismissing.
+  const menuAction = useRef<null | (() => void)>(null);
+  const runFromMenu = (fn: () => void) => {
+    setShareMenu(false);
+    if (Platform.OS === "ios") menuAction.current = fn;
+    else fn();
+  };
 
   // Best link to encode in the QR: the short link if ready, else the
   // self-contained /v# link so the QR always works.
@@ -195,44 +178,40 @@ export function ResultsScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Native prompt floats above the keyboard, so it can't bury the field.
-  const openPhone = (p: Person) => {
-    promptText(
-      p.phone ? `${p.name}'s phone` : `Add ${p.name}'s phone`,
-      "Used to text total amounts.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: (text?: string) => onUpdatePerson(p.id, { phone: (text ?? "").trim() || undefined }),
-        },
-      ],
-      "plain-text",
-      p.phone ?? "",
-      "phone-pad",
-    );
+  const openEditPerson = (p: Person) => setEditPerson(p);
+
+  // Soft expand/collapse, matching the History accordions.
+  const toggleExpanded = (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((prev) => (prev === id ? null : id));
   };
+
+  // Toggle a person's paid flag (owner override): update local, persist to the
+  // history record, and push to the shared page so everyone sees it.
+  const togglePaid = (pid: string) => {
+    if (unpaid === null) return;
+    const next = unpaid.includes(pid) ? unpaid.filter((x) => x !== pid) : [...unpaid, pid];
+    setUnpaid(next);
+    onUnpaidSynced?.(next);
+    if (shareId && shareEditToken) {
+      updateSharedBill(shareId, shareEditToken, { unpaid: next }).catch(() => {});
+    }
+  };
+
+  // How much is still owed to you (sum of everyone still marked unpaid). null
+  // when this bill isn't tracking payments yet.
+  const outstandingCents =
+    unpaid === null
+      ? null
+      : breakdown.perPerson
+          .filter((pb) => !pb.person.isMe && unpaid.includes(pb.person.id))
+          .reduce((s, pb) => s + pb.totalCents, 0);
 
   // Build one group message: each person's total, a link to the full breakdown,
   // and how to pay you (Venmo/Zelle).
-  const buildBody = (shareUrl?: string) => {
-    const owed = breakdown.perPerson
-      .filter((pb) => !pb.person.isMe)
-      .slice()
-      .sort((a, b) => b.totalCents - a.totalCents);
-
-    const names = textNames(owed.map((pb) => pb.person));
-    const header = bill.name?.trim() ? `Split — ${bill.name.trim()}` : "Split summary";
-    const lines = owed.map((pb) => `${names[pb.person.id]}: $${toDollars(pb.totalCents)}`);
-    let body = `${header}\n${lines.join("\n")}`;
-
-    const pay: string[] = [];
-    if (me.venmo) pay.push(`Venmo: https://venmo.com/u/${me.venmo.replace(/^@/, "").trim()}`);
-    if (me.zelle) pay.push(`Zelle: ${me.zelle.trim()}`);
-    if (pay.length) body += `\n\nPay me —\n${pay.join("\n")}`;
-
-    if (shareUrl) body += `\n\nFull breakdown: ${shareUrl}`;
-    return body;
+  const buildBody = (link?: string) => {
+    const url = link ?? buildShareUrl(bill);
+    return `Hey everyone! \nPlease pay me back for the delicious meal we enjoyed by following the link below.\n${url}`;
   };
 
   const textEveryone = () => {
@@ -296,9 +275,6 @@ export function ResultsScreen({
       <ScrollView
         contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(12) }}
       >
-        <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
-          <Icon name="chevron-left" size={28} color={colors.primary} />
-        </Pressable>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.h1}>Breakdown</Text>
@@ -318,6 +294,13 @@ export function ResultsScreen({
           <SummaryRow label="Tip" value={breakdown.tipCents} />
           <View style={styles.divider} />
           <SummaryRow label="Total" value={breakdown.grandTotalCents} bold />
+          {outstandingCents !== null && (
+            <Text style={styles.outstanding}>
+              {outstandingCents > 0
+                ? `$${toDollars(outstandingCents)} still owed to you`
+                : "All settled up"}
+            </Text>
+          )}
         </Card>
 
         {breakdown.unassignedItems.length > 0 && (
@@ -339,7 +322,9 @@ export function ResultsScreen({
             return (
               <Card key={pb.person.id} style={{ marginTop: spacing(1.5) }}>
                 <Pressable
-                  onPress={() => setExpanded(open ? null : pb.person.id)}
+                  onPress={() => toggleExpanded(pb.person.id)}
+                  onLongPress={() => !pb.person.isMe && openEditPerson(pb.person)}
+                  delayLongPress={300}
                   style={styles.personRow}
                 >
                   <Avatar
@@ -355,18 +340,28 @@ export function ResultsScreen({
                         {unpaid.includes(pb.person.id) ? "Unpaid" : "Paid"}
                       </Text>
                     )}
-                    {!pb.person.isMe && (
-                      pb.person.phone ? (
-                        <Text style={styles.personPhone}>{pb.person.phone}</Text>
-                      ) : (
-                        <Pressable onPress={() => openPhone(pb.person)} hitSlop={6} style={styles.addPhoneBtn}>
-                          <Icon name="plus" size={13} color={colors.primary} />
-                          <Text style={styles.addPhone}>Add phone</Text>
-                        </Pressable>
-                      )
-                    )}
                   </View>
-                  <Text style={styles.personTotal}>${toDollars(pb.totalCents)}</Text>
+                  {!pb.person.isMe && unpaid !== null ? (
+                    <Pressable
+                      onPress={() => togglePaid(pb.person.id)}
+                      hitSlop={8}
+                      style={[
+                        styles.priceBtn,
+                        unpaid.includes(pb.person.id) ? styles.priceBtnUnpaid : styles.priceBtnPaid,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.personTotal,
+                          unpaid.includes(pb.person.id) ? styles.priceUnpaid : styles.pricePaid,
+                        ]}
+                      >
+                        ${toDollars(pb.totalCents)}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.personTotal}>${toDollars(pb.totalCents)}</Text>
+                  )}
                   <Text style={styles.chevron}>{open ? "▾" : "▸"}</Text>
                 </Pressable>
 
@@ -391,11 +386,6 @@ export function ResultsScreen({
                     <MiniRow label="Items" cents={pb.subtotalCents} />
                     <MiniRow label="Tax share" cents={pb.taxCents} />
                     <MiniRow label="Tip share" cents={pb.tipCents} />
-                    {pb.person.phone && (
-                      <Pressable onPress={() => openPhone(pb.person)} hitSlop={6}>
-                        <Text style={styles.editPhone}>Edit phone</Text>
-                      </Pressable>
-                    )}
                   </View>
                 )}
               </Card>
@@ -439,35 +429,33 @@ export function ResultsScreen({
         transparent
         animationType="fade"
         onRequestClose={() => setShareMenu(false)}
+        onDismiss={() => {
+          const fn = menuAction.current;
+          menuAction.current = null;
+          fn?.();
+        }}
       >
         <Pressable style={styles.menuBackdrop} onPress={() => setShareMenu(false)}>
           <View style={styles.menuCard}>
             <ShareOption
-              icon={<MaterialCommunityIcons name="qrcode" size={22} color={colors.primary} />}
-              label="QR Code"
-              onPress={() => {
-                setShareMenu(false);
-                setQrVisible(true);
-              }}
+              icon={<Icon name="message-circle" size={22} color={colors.primary} />}
+              label="Message"
+              onPress={() => runFromMenu(() => textEveryone())}
             />
             <View style={styles.menuDivider} />
             <ShareOption
               icon={<Icon name="link" size={22} color={colors.primary} />}
               label="Link"
               disabled={!canShareBreakdown()}
-              onPress={() => {
-                setShareMenu(false);
-                shareBreakdown(bill, shareUrl ?? undefined).catch(() => {});
-              }}
+              onPress={() =>
+                runFromMenu(() => shareBreakdown(bill, shareUrl ?? undefined).catch(() => {}))
+              }
             />
             <View style={styles.menuDivider} />
             <ShareOption
-              icon={<Icon name="message-circle" size={22} color={colors.primary} />}
-              label="Message"
-              onPress={() => {
-                setShareMenu(false);
-                textEveryone();
-              }}
+              icon={<MaterialCommunityIcons name="qrcode" size={22} color={colors.primary} />}
+              label="QR Code"
+              onPress={() => runFromMenu(() => setQrVisible(true))}
             />
           </View>
         </Pressable>
@@ -494,6 +482,16 @@ export function ResultsScreen({
           </View>
         </Pressable>
       </Modal>
+
+      <PersonTray
+        visible={!!editPerson}
+        initial={editPerson}
+        onSave={(data) => {
+          if (editPerson) onUpdatePerson(editPerson.id, data);
+          setEditPerson(null);
+        }}
+        onClose={() => setEditPerson(null)}
+      />
     </View>
   );
 }
@@ -563,11 +561,19 @@ const styles = StyleSheet.create({
   },
   personRow: { flexDirection: "row", alignItems: "center", gap: spacing(1.5) },
   personName: { color: colors.text, fontSize: 17, fontWeight: "700" },
-  personPhone: { color: colors.textDim, fontSize: 13, marginTop: 2 },
-  addPhoneBtn: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
-  addPhone: { color: colors.primary, fontSize: 13, fontWeight: "600" },
-  editPhone: { color: colors.primary, fontSize: 13, fontWeight: "600", marginTop: spacing(1) },
-  personTotal: { color: colors.success, fontSize: 20, fontWeight: "800" },
+  personTotal: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  priceUnpaid: { color: colors.primary }, // orange = still owes
+  pricePaid: { color: colors.success }, // green = paid
+  priceBtn: {
+    borderWidth: 1.5,
+    borderRadius: radius.sm,
+    paddingVertical: spacing(0.5),
+    paddingHorizontal: spacing(1),
+  },
+  priceBtnUnpaid: { borderColor: colors.primary },
+  priceBtnPaid: { borderColor: colors.success },
+  badgeUnpaid: { color: colors.primary, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  badgePaid: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 2 },
   chevron: { color: colors.textDim, fontSize: 16, width: 18, textAlign: "right" },
   detail: {
     marginTop: spacing(1.5),
@@ -606,12 +612,6 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.bg,
   },
-  backBtn: {
-    alignSelf: "flex-start",
-    marginLeft: -4,
-    marginBottom: spacing(0.5),
-    padding: spacing(0.5),
-  },
   actionRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -626,8 +626,13 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   actionLabel: { color: colors.primary, fontSize: 12, fontWeight: "600" },
-  badgePaid: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 2 },
-  badgeUnpaid: { color: colors.warning, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  outstanding: {
+    color: colors.textDim,
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "right",
+    marginTop: spacing(0.75),
+  },
   // Share bubble
   menuBackdrop: {
     flex: 1,

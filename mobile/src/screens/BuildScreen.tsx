@@ -6,20 +6,19 @@ import {
   Alert,
   Animated,
   Image,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Assignments, Item, Person } from "../types";
 import { splitEqually, toCents } from "../split";
 import { pickContact } from "../contacts";
-import { promptText } from "../prompt";
-import { Avatar, AvatarNameRow, AvatarStyleControls, Button, Card, Field, Icon, SwipeRow } from "../ui";
+import { Avatar, Button, Card, Field, Icon, PersonTray, PrefixField, SwipeRow, type PersonDraft } from "../ui";
 import { makeId } from "../util";
 import { colors, personColors, radius, spacing } from "../theme";
 
@@ -28,15 +27,13 @@ import { colors, personColors, radius, spacing } from "../theme";
 function RowActions({
   active,
   onOpen,
-  onRename,
-  onPrice,
   onSplit,
+  onDone,
 }: {
   active: boolean;
   onOpen: () => void;
-  onRename: () => void;
-  onPrice: () => void;
   onSplit: () => void;
+  onDone: () => void;
 }) {
   const v = useRef(new Animated.Value(active ? 1 : 0)).current;
   useEffect(() => {
@@ -58,14 +55,11 @@ function RowActions({
         </Pressable>
       </Animated.View>
       <Animated.View style={[raStyles.icons, { opacity: v }]} pointerEvents={active ? "auto" : "none"}>
-        <Pressable onPress={onRename} hitSlop={8} style={raStyles.btn}>
-          <Icon name="edit-2" size={16} color={colors.primary} />
-        </Pressable>
-        <Pressable onPress={onPrice} hitSlop={8} style={raStyles.btn}>
-          <Icon name="dollar-sign" size={16} color={colors.primary} />
-        </Pressable>
         <Pressable onPress={onSplit} hitSlop={8} style={raStyles.btn}>
           <Icon name="divide" size={16} color={colors.primary} />
+        </Pressable>
+        <Pressable onPress={onDone} hitSlop={8} style={[raStyles.btn, raStyles.btnDone]}>
+          <Icon name="check" size={16} color={colors.onPrimary} />
         </Pressable>
       </Animated.View>
     </View>
@@ -73,7 +67,7 @@ function RowActions({
 }
 
 const raStyles = StyleSheet.create({
-  wrap: { width: 108, height: 34, justifyContent: "center", alignItems: "flex-end" },
+  wrap: { width: 76, height: 34, justifyContent: "center", alignItems: "flex-end" },
   gearWrap: { position: "absolute", right: 0, top: 0, bottom: 0, justifyContent: "center" },
   gear: { paddingHorizontal: spacing(0.5) },
   icons: { flexDirection: "row", alignItems: "center", gap: spacing(0.75) },
@@ -87,6 +81,7 @@ const raStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  btnDone: { backgroundColor: colors.primary, borderColor: colors.primary },
 });
 
 export function BuildScreen({
@@ -120,9 +115,12 @@ export function BuildScreen({
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editPriceText, setEditPriceText] = useState(""); // price buffer for the row being edited
+  const [splitItem, setSplitItem] = useState<Item | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState(false);
   // Track people-row scroll geometry to hint when more people are off-screen.
   const peopleRef = useRef<ScrollView>(null);
+  const titleRef = useRef<TextInput>(null);
   const [peopleScroll, setPeopleScroll] = useState({ x: 0, w: 0, c: 0 });
   const showPeopleHint =
     peopleScroll.c > peopleScroll.w + 8 &&
@@ -143,18 +141,13 @@ export function BuildScreen({
     });
   };
 
-  // Add / edit-person sheet
-  const [addingPerson, setAddingPerson] = useState(false);
-  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
-  const [pName, setPName] = useState("");
-  const [pPhone, setPPhone] = useState("");
-  const [pEmoji, setPEmoji] = useState(""); // "" = no emoji (initials)
-  const [pColor, setPColor] = useState(personColors[0]);
-  const [pPhoto, setPPhoto] = useState<string | undefined>(undefined);
+  // Add / edit-person tray (shared PersonTray component)
+  const [personTrayOpen, setPersonTrayOpen] = useState(false);
+  const [personTrayInitial, setPersonTrayInitial] = useState<Person | null>(null);
 
   const active = activeId ?? people[0]?.id ?? null;
   const activePerson = people.find((p) => p.id === active);
-  const editingIsMe = !!editingPersonId && !!people.find((p) => p.id === editingPersonId)?.isMe;
+  const editingIsMe = !!personTrayInitial?.isMe;
 
   // --- assignment: tap item to toggle the active person on it -----------
   const toggleAssign = (itemId: string) => {
@@ -169,82 +162,53 @@ export function BuildScreen({
     });
   };
 
-  // --- item editing (native prompts stay above the keyboard) ------------
-  const promptRename = (item: Item) => {
-    promptText(
-      "Rename item",
-      undefined,
-      [
-        { text: "Cancel", style: "cancel", onPress: () => setEditingRowId(null) },
-        {
-          text: "Save",
-          onPress: (text?: string) => {
-            const name = (text ?? "").trim();
-            if (name) setItems(items.map((i) => (i.id === item.id ? { ...i, name } : i)));
-            setEditingRowId(null);
-          },
-        },
-      ],
-      "plain-text",
-      item.name,
-    );
+  // --- item add/edit (inline, like the bill title) ----------------------
+  const enterEdit = (item: Item) => {
+    setEditingRowId(item.id);
+    setEditPriceText(item.price ? String(item.price) : "");
+  };
+  const exitEdit = () => {
+    // Blank names fall back to "Item".
+    setItems(items.map((i) => (i.id === editingRowId ? { ...i, name: i.name.trim() || "Item" } : i)));
+    setEditingRowId(null);
+  };
+  const openAddItem = () => {
+    const id = makeId("item");
+    setItems([...items, { id, name: "", price: 0 }]);
+    setEditingRowId(id);
+    setEditPriceText("");
+  };
+  const renameItem = (id: string, name: string) =>
+    setItems(items.map((i) => (i.id === id ? { ...i, name } : i)));
+  const changePrice = (id: string, text: string) => {
+    setEditPriceText(text);
+    const p = parseFloat(text.replace(/[^0-9.]/g, "")) || 0;
+    setItems(items.map((i) => (i.id === id ? { ...i, price: p } : i)));
   };
 
-  const promptPrice = (item: Item) => {
-    promptText(
-      "Edit price",
-      "Enter the dollar amount",
-      [
-        { text: "Cancel", style: "cancel", onPress: () => setEditingRowId(null) },
-        {
-          text: "Save",
-          onPress: (text?: string) => {
-            const p = parseFloat((text ?? "").replace(/[^0-9.]/g, ""));
-            if (!isNaN(p)) setItems(items.map((i) => (i.id === item.id ? { ...i, price: p } : i)));
-            setEditingRowId(null);
-          },
-        },
-      ],
-      "plain-text",
-      String(item.price),
-      "decimal-pad",
-    );
+  const openSplit = (item: Item) => {
+    setEditingRowId(null);
+    setSplitItem(item);
   };
-
-  const promptSplit = (item: Item) => {
-    promptText(
-      "Split item",
-      `Divide "${item.name}" into how many separate items?`,
-      [
-        { text: "Cancel", style: "cancel", onPress: () => setEditingRowId(null) },
-        {
-          text: "Split",
-          onPress: (text?: string) => {
-            const n = parseInt((text ?? "").replace(/[^0-9]/g, ""), 10);
-            if (n >= 2) {
-              // Divide the price into exact cents so the parts sum to the original.
-              const parts = splitEqually(toCents(item.price), n);
-              const newItems: Item[] = parts.map((c, k) => ({
-                id: makeId("item"),
-                name: `${item.name} (${k + 1}/${n})`,
-                price: c / 100,
-              }));
-              const idx = items.findIndex((i) => i.id === item.id);
-              const next = [...items];
-              next.splice(idx, 1, ...newItems);
-              setItems(next);
-              const a = { ...assignments };
-              delete a[item.id];
-              setAssignments(a);
-            }
-            setEditingRowId(null);
-          },
-        },
-      ],
-      "plain-text",
-      "2",
-      "number-pad",
-    );
+  const doSplit = (n: number) => {
+    const item = splitItem;
+    if (item && n >= 2) {
+      // Divide the price into exact cents so the parts sum to the original.
+      const parts = splitEqually(toCents(item.price), n);
+      const newItems: Item[] = parts.map((c, k) => ({
+        id: makeId("item"),
+        name: `${item.name} (${k + 1}/${n})`,
+        price: c / 100,
+      }));
+      const idx = items.findIndex((i) => i.id === item.id);
+      const next = [...items];
+      next.splice(idx, 1, ...newItems);
+      setItems(next);
+      const a = { ...assignments };
+      delete a[item.id];
+      setAssignments(a);
+    }
+    setSplitItem(null);
   };
 
   const deleteItem = (id: string) => {
@@ -255,121 +219,38 @@ export function BuildScreen({
     if (editingRowId === id) setEditingRowId(null);
   };
 
-  const promptName = () => {
-    promptText(
-      "Name this bill",
-      "e.g. Sushi night",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Save", onPress: (t?: string) => setBillName((t ?? "").trim()) },
-      ],
-      "plain-text",
-      billName,
-    );
-  };
-
-  const addItem = () => {
-    setEditingRowId(null);
-    promptText(
-      "New item",
-      "Item name",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Next",
-          onPress: (name?: string) => {
-            const nm = (name ?? "").trim() || "Item";
-            promptText(
-              "Price",
-              `Price for "${nm}"`,
-              [
-                { text: "Skip", onPress: () => setItems([...items, { id: makeId("item"), name: nm, price: 0 }]) },
-                {
-                  text: "Add",
-                  onPress: (priceText?: string) => {
-                    const p = parseFloat((priceText ?? "").replace(/[^0-9.]/g, "")) || 0;
-                    setItems([...items, { id: makeId("item"), name: nm, price: p }]);
-                  },
-                },
-              ],
-              "plain-text",
-              "",
-              "decimal-pad",
-            );
-          },
-        },
-      ],
-      "plain-text",
-      "",
-    );
-  };
-
-  // --- people -----------------------------------------------------------
-  const resetPersonForm = () => {
-    setPName("");
-    setPPhone("");
-    setPEmoji("");
-    setPColor(personColors[people.length % personColors.length]);
-    setPPhoto(undefined);
-    setEditingPersonId(null);
+  // --- people (shared PersonTray) ---------------------------------------
+  const closePersonTray = () => {
+    setPersonTrayOpen(false);
+    setPersonTrayInitial(null);
   };
   const openAddPerson = () => {
     setEditingRowId(null);
-    resetPersonForm();
-    setAddingPerson(true);
+    setPersonTrayInitial(null);
+    setPersonTrayOpen(true);
   };
   const openEditPerson = (p: Person) => {
     setEditingRowId(null);
-    setEditingPersonId(p.id);
-    setPName(p.name);
-    setPPhone(p.phone ?? "");
-    setPEmoji(p.emoji ?? "");
-    setPColor(p.color || personColors[0]);
-    setPPhoto(p.photo);
-    setAddingPerson(true);
+    setPersonTrayInitial(p);
+    setPersonTrayOpen(true);
   };
-  const savePerson = () => {
-    const name = pName.trim();
-    if (!name) return;
-    if (editingPersonId) {
-      // Edit an existing bill participant in place.
-      setPeople(
-        people.map((p) =>
-          p.id === editingPersonId
-            ? {
-                ...p,
-                name,
-                phone: pPhone.trim() || undefined,
-                emoji: pEmoji || undefined,
-                color: pColor,
-                photo: pPhoto,
-              }
-            : p,
-        ),
-      );
+  const savePerson = (data: PersonDraft) => {
+    if (personTrayInitial) {
+      setPeople(people.map((p) => (p.id === personTrayInitial.id ? { ...p, ...data } : p)));
     } else {
-      const base: Person = {
-        id: makeId("person"),
-        name,
-        phone: pPhone.trim() || undefined,
-        emoji: pEmoji || undefined,
-        color: pColor,
-        photo: pPhoto,
-      };
+      const base: Person = { id: makeId("person"), ...data };
       const person = { ...base, contactId: onEnsureContact(base) };
       setPeople([...people, person]);
       setActiveId(person.id);
     }
-    resetPersonForm();
-    setAddingPerson(false);
+    closePersonTray();
   };
   const quickAdd = (profile: Person) => {
     // Link this bill participant to the existing saved contact.
     const person = { ...profile, id: makeId("person"), contactId: profile.id };
     setPeople([...people, person]);
     setActiveId(person.id);
-    resetPersonForm();
-    setAddingPerson(false);
+    closePersonTray();
   };
   const importPerson = async () => {
     const c = await pickContact();
@@ -384,10 +265,11 @@ export function BuildScreen({
     const person = { ...base, contactId: onEnsureContact(base) };
     setPeople([...people, person]);
     setActiveId(person.id);
-    resetPersonForm();
-    setAddingPerson(false);
+    closePersonTray();
   };
-  const removePerson = (p: Person) => {
+  const removePerson = () => {
+    const p = personTrayInitial;
+    if (!p) return;
     setPeople(people.filter((x) => x.id !== p.id));
     const next: Assignments = {};
     for (const [itemId, ids] of Object.entries(assignments)) {
@@ -395,6 +277,7 @@ export function BuildScreen({
     }
     setAssignments(next);
     if (active === p.id) setActiveId(null);
+    closePersonTray();
   };
 
   const total = items.reduce((s, i) => s + i.price, 0);
@@ -412,26 +295,25 @@ export function BuildScreen({
     onNext();
   };
 
-  // typeahead over past profiles not already in the bill
-  const q = pName.trim().toLowerCase();
-  const suggestions = savedProfiles
-    .filter((sp) => !people.some((p) => p.name.toLowerCase() === sp.name.toLowerCase()))
-    .filter((sp) => (q ? sp.name.toLowerCase().includes(q) : true))
-    .slice(0, 6);
-
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}>
         <View style={styles.headerRow}>
-          <Pressable onPress={promptName} style={styles.titleBtn} hitSlop={6}>
-            <Text
-              style={[styles.h1, !billName && styles.h1Placeholder]}
-              numberOfLines={1}
-            >
-              {billName || "Name this bill"}
-            </Text>
-            <Icon name="edit-2" size={15} color={colors.textDim} />
-          </Pressable>
+          <View style={styles.titleBtn}>
+            <TextInput
+              ref={titleRef}
+              style={[styles.h1, styles.titleInput]}
+              value={billName}
+              onChangeText={setBillName}
+              placeholder="Name this bill"
+              placeholderTextColor={colors.textDim}
+              autoCapitalize="words"
+              returnKeyType="done"
+            />
+            <Pressable onPress={() => titleRef.current?.focus()} hitSlop={10}>
+              <Icon name="edit-2" size={15} color={colors.textDim} />
+            </Pressable>
+          </View>
         </View>
         <View style={styles.metaRow}>
           <Text style={styles.total}>${total.toFixed(2)}</Text>
@@ -456,39 +338,63 @@ export function BuildScreen({
           return (
             <SwipeRow key={item.id} onDelete={() => deleteItem(item.id)}>
               <Pressable
-                onPress={() => toggleAssign(item.id)}
+                onPress={() => {
+                  if (!editing) toggleAssign(item.id);
+                }}
                 style={[styles.itemRow, mine && styles.itemRowActive]}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  {sharers.length === 0 ? (
-                    <Text style={styles.unassigned}>Unassigned</Text>
-                  ) : (
-                    <View style={styles.sharerRow}>
-                      {sharers.map((id) => {
-                        const sp = people.find((p) => p.id === id);
-                        return sp ? (
-                          <Avatar key={id} name={sp.name} color={sp.color} emoji={sp.emoji} photo={sp.photo} size={20} />
-                        ) : null;
-                      })}
-                      {each && <Text style={styles.eachText}>${each.toFixed(2)} each</Text>}
+                  {editing ? (
+                    <View style={{ gap: spacing(1) }}>
+                      <Field
+                        value={item.name}
+                        onChangeText={(t) => renameItem(item.id, t)}
+                        placeholder="Item name"
+                        autoCapitalize="words"
+                        autoFocus
+                      />
+                      <PrefixField
+                        prefix="$"
+                        value={editPriceText}
+                        onChangeText={(t) => changePrice(item.id, t)}
+                        placeholder="0.00"
+                        keyboardType="decimal-pad"
+                      />
                     </View>
+                  ) : (
+                    <>
+                      <Text style={styles.itemName}>{item.name}</Text>
+                      {sharers.length === 0 ? (
+                        <Text style={styles.unassigned}>Unassigned</Text>
+                      ) : (
+                        <View style={styles.sharerRow}>
+                          {sharers.map((id) => {
+                            const sp = people.find((p) => p.id === id);
+                            return sp ? (
+                              <Avatar key={id} name={sp.name} color={sp.color} emoji={sp.emoji} photo={sp.photo} size={20} />
+                            ) : null;
+                          })}
+                          {each && <Text style={styles.eachText}>${each.toFixed(2)} each</Text>}
+                        </View>
+                      )}
+                    </>
                   )}
                 </View>
-                <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+                {!editing && (
+                  <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+                )}
                 <RowActions
                   active={editing}
-                  onOpen={() => setEditingRowId(item.id)}
-                  onRename={() => promptRename(item)}
-                  onPrice={() => promptPrice(item)}
-                  onSplit={() => promptSplit(item)}
+                  onOpen={() => enterEdit(item)}
+                  onSplit={() => openSplit(item)}
+                  onDone={exitEdit}
                 />
               </Pressable>
             </SwipeRow>
           );
         })}
 
-        <Pressable onPress={addItem} style={styles.addItem}>
+        <Pressable onPress={openAddItem} style={styles.addItem}>
           <Icon name="plus" size={16} color={colors.primary} />
           <Text style={styles.addItemText}>Add item</Text>
         </Pressable>
@@ -587,98 +493,37 @@ export function BuildScreen({
         </Pressable>
       </Modal>
 
-      {/* ---- Add person ---- */}
-      <Modal visible={addingPerson} transparent animationType="slide" onRequestClose={() => setAddingPerson(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={{ flex: 1 }}
-        >
-          <Pressable
-            style={styles.modalWrap}
-            onPress={() => {
-              resetPersonForm();
-              setAddingPerson(false);
-            }}
-          >
-            <Pressable style={styles.sheet} onPress={() => {}}>
-              <ScrollView keyboardShouldPersistTaps="handled">
-                <AvatarNameRow
-                  name={pName}
-                  onName={setPName}
-                  color={pColor}
-                  emoji={pEmoji}
-                  photo={pPhoto}
-                  onPhoto={setPPhoto}
-                  autoFocus={!editingPersonId}
-                />
+      {/* ---- Add / edit person (shared tray) ---- */}
+      <PersonTray
+        visible={personTrayOpen}
+        initial={personTrayInitial}
+        defaultColor={personColors[people.length % personColors.length]}
+        savedProfiles={savedProfiles}
+        excludeNames={people.map((p) => p.name)}
+        onQuickAdd={quickAdd}
+        showImport={Platform.OS !== "web"}
+        onImport={importPerson}
+        canDelete={!editingIsMe}
+        onDelete={removePerson}
+        onSave={savePerson}
+        onClose={closePersonTray}
+      />
 
-                {!editingPersonId && Platform.OS !== "web" && (
-                  <Button
-                    title="Import from Contacts"
-                    onPress={importPerson}
-                    variant="secondary"
-                    style={{ marginBottom: spacing(1) }}
-                  />
-                )}
-
-                {!editingPersonId && suggestions.length > 0 && (
-                  <View style={styles.suggestions}>
-                    {suggestions.map((sp) => (
-                      <Pressable key={sp.id} onPress={() => quickAdd(sp)} style={styles.suggestChip}>
-                        <Avatar name={sp.name} color={sp.color} emoji={sp.emoji} photo={sp.photo} size={24} />
-                        <Text style={styles.suggestName}>{sp.name}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-
-                <Text style={styles.fieldLabel}>Phone (optional)</Text>
-                <Field
-                  value={pPhone}
-                  onChangeText={setPPhone}
-                  placeholder="For sending them their bill"
-                  keyboardType="phone-pad"
-                />
-
-                <AvatarStyleControls
-                  color={pColor}
-                  onColor={setPColor}
-                  emoji={pEmoji}
-                  onEmoji={setPEmoji}
-                  photo={pPhoto}
-                  onRemovePhoto={() => setPPhoto(undefined)}
-                />
-
-                <Button
-                  title={editingPersonId ? "Save" : "Add"}
-                  onPress={savePerson}
-                  disabled={!pName.trim()}
-                  style={{ marginTop: spacing(2) }}
-                />
-                {editingPersonId && !editingIsMe && (
-                  <Button
-                    title="Remove from bill"
-                    onPress={() => {
-                      const p = people.find((x) => x.id === editingPersonId);
-                      if (p) removePerson(p);
-                      resetPersonForm();
-                      setAddingPerson(false);
-                    }}
-                    variant="ghost"
-                  />
-                )}
-                <Button
-                  title="Cancel"
-                  onPress={() => {
-                    resetPersonForm();
-                    setAddingPerson(false);
-                  }}
-                  variant="ghost"
-                />
-              </ScrollView>
-            </Pressable>
+      {/* Split — button-only, no keyboard */}
+      <Modal visible={!!splitItem} transparent animationType="fade" onRequestClose={() => setSplitItem(null)}>
+        <Pressable style={styles.splitWrap} onPress={() => setSplitItem(null)}>
+          <Pressable style={styles.splitCard} onPress={() => {}}>
+            <Text style={styles.splitTitle}>Divide into…</Text>
+            <View style={styles.splitBtns}>
+              {[2, 3, 4].map((n) => (
+                <Pressable key={n} style={styles.splitChoice} onPress={() => doSplit(n)}>
+                  <Text style={styles.splitChoiceText}>{n}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Button title="Cancel" variant="ghost" onPress={() => setSplitItem(null)} />
           </Pressable>
-        </KeyboardAvoidingView>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -688,6 +533,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing(1) },
   titleBtn: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
   h1: { color: colors.text, fontSize: 28, fontWeight: "800", flexShrink: 1 },
+  titleInput: { flex: 1, paddingVertical: 0 },
   h1Placeholder: { color: colors.textDim },
   viewPhotoBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   viewPhoto: { color: colors.primary, fontSize: 14, fontWeight: "600" },
@@ -788,6 +634,34 @@ const styles = StyleSheet.create({
   photoClose: { color: colors.onPrimary, marginTop: spacing(2), fontSize: 15 },
   // modals
   modalWrap: { flex: 1, justifyContent: "flex-end", backgroundColor: colors.scrimSoft },
+  splitWrap: {
+    flex: 1,
+    backgroundColor: colors.scrimSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing(3),
+  },
+  splitCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing(3),
+    width: "100%",
+    maxWidth: 320,
+    alignItems: "center",
+  },
+  splitTitle: { color: colors.text, fontSize: 18, fontWeight: "800", marginBottom: spacing(2) },
+  splitBtns: { flexDirection: "row", gap: spacing(2), marginBottom: spacing(1) },
+  splitChoice: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  splitChoiceText: { color: colors.primary, fontSize: 26, fontWeight: "800" },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.lg,

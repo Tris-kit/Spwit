@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button, Field, PrefixField } from "../ui";
+import { formatPhone } from "../util";
 import { colors, spacing } from "../theme";
 
 export function OnboardingScreen({
@@ -28,6 +29,8 @@ export function OnboardingScreen({
     <ScrollView
       contentContainerStyle={styles.root}
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="interactive"
     >
       <View style={styles.hero}>
         <View style={styles.mascot}>
@@ -64,8 +67,8 @@ export function OnboardingScreen({
       </Text>
       <Field
         value={phone}
-        onChangeText={setPhone}
-        placeholder="Your phone number"
+        onChangeText={(t) => setPhone(formatPhone(t))}
+        placeholder="(555) 123-4567"
         keyboardType="phone-pad"
       />
 
@@ -77,7 +80,7 @@ export function OnboardingScreen({
 }
 
 const styles = StyleSheet.create({
-  root: { padding: spacing(3), paddingTop: spacing(6), flexGrow: 1 },
+  root: { padding: spacing(3), paddingTop: spacing(6), paddingBottom: spacing(8), flexGrow: 1 },
   hero: { alignItems: "center", marginBottom: spacing(4) },
   mascot: {
     width: 100,

@@ -1,21 +1,30 @@
 // Small shared UI building blocks used across screens.
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
   PanResponder,
+  Platform,
   Pressable,
+  ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
   TextInputProps,
+  useWindowDimensions,
   View,
   ViewStyle,
 } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { AVATAR_EMOJIS, colors, personColors, radius, spacing } from "./theme";
 import { pickAvatarPhoto } from "./photo";
+import { formatPhone } from "./util";
+import { Person } from "./types";
 
 export type IconName = React.ComponentProps<typeof Feather>["name"];
 
@@ -297,11 +306,14 @@ export const SwipeRow = React.forwardRef<
 const swipeStyles = StyleSheet.create({
   wrap: { position: "relative", marginBottom: spacing(1) },
   behind: {
+    // Full-width so the red always fills everything to the right of the row —
+    // you only ever see its rounded right edge, never the far/left edge, no
+    // matter how far the row is pulled.
     position: "absolute",
     top: 0,
+    left: 0,
     right: 0,
     bottom: 0,
-    width: 120,
     backgroundColor: colors.danger,
     borderRadius: radius.md,
     alignItems: "flex-end",
@@ -365,35 +377,470 @@ export function Card({
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-export function Field(props: TextInputProps) {
+// Text input in a bordered box. While focused it shows a checkmark button on the
+// right that dismisses the keyboard — handy for numeric/phone fields that have no
+// return key. Optionally renders a fixed, non-editable prefix (e.g. "@"/"$").
+function BaseField({
+  prefix,
+  containerStyle,
+  ...props
+}: TextInputProps & { prefix?: string; containerStyle?: StyleProp<ViewStyle> }) {
+  const ref = useRef<TextInput>(null);
+  const [focused, setFocused] = useState(false);
+  const [pressed, setPressed] = useState(false); // flash filled on tap
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  // Fade the checkmark in on focus, out on blur.
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: focused ? 1 : 0,
+      duration: 160,
+      useNativeDriver: true,
+    }).start(() => {
+      if (!focused) setPressed(false); // reset the flash once hidden
+    });
+  }, [focused, opacity]);
+
+  const dismiss = () => {
+    setPressed(true); // flash filled as it fades away
+    ref.current?.blur();
+    Keyboard.dismiss();
+  };
+
   return (
-    <TextInput
-      placeholderTextColor={colors.textDim}
-      {...props}
-      style={[styles.field, props.style]}
-    />
+    <View style={[styles.fieldBox, containerStyle]}>
+      {prefix ? <Text style={styles.prefixText}>{prefix}</Text> : null}
+      <TextInput
+        ref={ref}
+        placeholderTextColor={colors.textDim}
+        {...props}
+        style={[styles.fieldInput, props.style]}
+        onFocus={(e) => {
+          setFocused(true);
+          props.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          props.onBlur?.(e);
+        }}
+      />
+      <Animated.View
+        pointerEvents={focused ? "auto" : "none"}
+        style={[styles.fieldCheckWrap, { opacity }]}
+      >
+        <Pressable
+          onPress={dismiss}
+          hitSlop={8}
+          style={[styles.fieldCheck, pressed && styles.fieldCheckFilled]}
+        >
+          <Feather name="check" size={15} color={pressed ? colors.onPrimary : colors.primary} />
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 }
 
+// Wrap a screen so a drag from the left edge past halfway slides it aside and
+// triggers `onBack` (iOS-style back gesture). Only claims gestures that START at
+// the left edge, so it never steals taps (e.g. the back arrow) or scrolls.
+export function SwipeBackView({
+  onBack,
+  children,
+  style,
+}: {
+  onBack?: () => void;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { width } = useWindowDimensions();
+  const tx = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  const backRef = useRef(onBack);
+  backRef.current = onBack;
+
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => {
+        if (!backRef.current) return false;
+        const startX = g.moveX - g.dx; // where the finger began
+        return startX <= 30 && g.dx > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5;
+      },
+      onPanResponderMove: (_e, g) => tx.setValue(Math.max(0, g.dx)),
+      onPanResponderRelease: (_e, g) => {
+        const w = width || 400;
+        if (g.dx > w * 0.5 || g.vx > 0.6) {
+          // Finish sliding the old screen off, then swap the screen while hidden
+          // (so it can't flash back) and fade the new one in.
+          Animated.timing(tx, { toValue: w, duration: 130, useNativeDriver: true }).start(() => {
+            opacity.setValue(0);
+            backRef.current?.();
+            tx.setValue(0);
+            Animated.timing(opacity, { toValue: 1, duration: 140, useNativeDriver: true }).start();
+          });
+        } else {
+          Animated.spring(tx, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(tx, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+      },
+    }),
+  ).current;
+
+  return (
+    <Animated.View
+      style={[{ flex: 1, opacity, transform: [{ translateX: tx }] }, style]}
+      {...pan.panHandlers}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+export function Field({ style, ...props }: TextInputProps) {
+  // Field callers pass `style` for layout (flex/margin) — route it to the box.
+  return <BaseField {...props} containerStyle={style as StyleProp<ViewStyle>} />;
+}
+
 // A field with a fixed, non-editable prefix shown inside the box (e.g. "@" for a
-// Venmo handle). The prefix is decorative — it's never part of the typed value,
-// so it can't be selected or deleted.
+// Venmo handle). The prefix is decorative — never part of the typed value.
 export function PrefixField({
   prefix,
   containerStyle,
   ...props
-}: TextInputProps & { prefix: string; containerStyle?: ViewStyle }) {
+}: TextInputProps & { prefix: string; containerStyle?: StyleProp<ViewStyle> }) {
+  return <BaseField {...props} prefix={prefix} containerStyle={containerStyle} />;
+}
+
+// One reusable prompt modal — replaces the ugly native Alert.prompt everywhere.
+// Renders one or more labelled fields (with the focus checkmark) + Cancel/Submit.
+export type PromptField = {
+  key: string;
+  label?: string;
+  placeholder?: string;
+  initial?: string;
+  prefix?: string; // e.g. "$" or "@"
+  keyboardType?: TextInputProps["keyboardType"];
+  autoCapitalize?: TextInputProps["autoCapitalize"];
+  format?: (text: string) => string; // transform each keystroke (e.g. phone)
+};
+
+export function InputModal({
+  visible,
+  title,
+  message,
+  fields,
+  submitLabel = "Save",
+  onCancel,
+  onSubmit,
+}: {
+  visible: boolean;
+  title: string;
+  message?: string;
+  fields: PromptField[];
+  submitLabel?: string;
+  onCancel: () => void;
+  onSubmit: (values: Record<string, string>) => void;
+}) {
+  const [vals, setVals] = useState<Record<string, string>>({});
+  // Seed field values each time the modal opens.
+  useEffect(() => {
+    if (!visible) return;
+    const init: Record<string, string> = {};
+    for (const f of fields) init[f.key] = f.initial ?? "";
+    setVals(init);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const set = (f: PromptField, v: string) =>
+    setVals((prev) => ({ ...prev, [f.key]: f.format ? f.format(v) : v }));
+
   return (
-    <View style={[styles.prefixField, containerStyle]}>
-      <Text style={styles.prefixText}>{prefix}</Text>
-      <TextInput
-        placeholderTextColor={colors.textDim}
-        {...props}
-        style={[styles.prefixInput, props.style]}
-      />
-    </View>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={promptStyles.root}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={promptStyles.sheet}>
+            <View style={promptStyles.grabber} />
+            <Text style={promptStyles.title}>{title}</Text>
+            {message ? <Text style={promptStyles.message}>{message}</Text> : null}
+            {fields.map((f, i) => (
+            <View key={f.key} style={{ marginTop: spacing(1.5) }}>
+              {f.label ? <Text style={promptStyles.label}>{f.label}</Text> : null}
+              {f.prefix ? (
+                <PrefixField
+                  prefix={f.prefix}
+                  value={vals[f.key] ?? ""}
+                  onChangeText={(t) => set(f, t)}
+                  placeholder={f.placeholder}
+                  keyboardType={f.keyboardType}
+                  autoCapitalize={f.autoCapitalize}
+                  autoFocus={i === 0}
+                />
+              ) : (
+                <Field
+                  value={vals[f.key] ?? ""}
+                  onChangeText={(t) => set(f, t)}
+                  placeholder={f.placeholder}
+                  keyboardType={f.keyboardType}
+                  autoCapitalize={f.autoCapitalize}
+                  autoFocus={i === 0}
+                />
+              )}
+            </View>
+          ))}
+            <View style={promptStyles.btns}>
+              <Button title="Cancel" variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
+              <Button title={submitLabel} onPress={() => onSubmit(vals)} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
   );
 }
+
+const promptStyles = StyleSheet.create({
+  // Bottom sheet: the keyboard pushes the whole sheet up as one unit (no jerky
+  // re-centering, no field detaching from the card).
+  root: { flex: 1, backgroundColor: colors.scrimSoft, justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingHorizontal: spacing(3),
+    paddingTop: spacing(1.5),
+    paddingBottom: spacing(4),
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: spacing(2),
+  },
+  title: { color: colors.text, fontSize: 18, fontWeight: "800" },
+  message: { color: colors.textDim, fontSize: 14, marginTop: spacing(0.5) },
+  label: { color: colors.textDim, fontSize: 13, marginBottom: spacing(0.5) },
+  btns: { flexDirection: "row", gap: spacing(1.5), marginTop: spacing(3) },
+});
+
+export type PersonDraft = {
+  name: string;
+  phone?: string;
+  emoji?: string;
+  color: string;
+  photo?: string;
+};
+
+// The shared add/edit person tray — one component used by the Build (item
+// selection) screen and the Breakdown, so editing a profile looks identical
+// everywhere. Manages its own form state, seeded from `initial` when opened.
+export function PersonTray({
+  visible,
+  initial,
+  defaultColor,
+  savedProfiles,
+  excludeNames,
+  onQuickAdd,
+  showImport,
+  onImport,
+  canDelete,
+  onDelete,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  initial: Person | null; // null = adding a new person
+  defaultColor?: string;
+  savedProfiles?: Person[];
+  excludeNames?: string[];
+  onQuickAdd?: (p: Person) => void;
+  showImport?: boolean;
+  onImport?: () => void;
+  canDelete?: boolean;
+  onDelete?: () => void;
+  onSave: (data: PersonDraft) => void;
+  onClose: () => void;
+}) {
+  const isEdit = !!initial;
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [emoji, setEmoji] = useState("");
+  const [color, setColor] = useState(defaultColor ?? personColors[0]);
+  const [photo, setPhoto] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!visible) return;
+    setName(initial?.name ?? "");
+    setPhone(formatPhone(initial?.phone ?? ""));
+    setEmoji(initial?.emoji ?? "");
+    setColor(initial?.color || defaultColor || personColors[0]);
+    setPhoto(initial?.photo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  // Custom animation: backdrop fades in, sheet slides up over it (and reverse on
+  // close). Stays mounted through the exit animation.
+  const { height } = useWindowDimensions();
+  const [mounted, setMounted] = useState(visible);
+  const backdrop = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(height)).current;
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      slide.setValue(height);
+      backdrop.setValue(0);
+      Animated.parallel([
+        Animated.timing(backdrop, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(slide, { toValue: 0, useNativeDriver: true, bounciness: 2, speed: 14 }),
+      ]).start();
+    } else if (mounted) {
+      Animated.parallel([
+        Animated.timing(backdrop, { toValue: 0, duration: 180, useNativeDriver: true }),
+        Animated.timing(slide, { toValue: height, duration: 200, useNativeDriver: true }),
+      ]).start(() => setMounted(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const q = name.trim().toLowerCase();
+  const exclude = new Set((excludeNames ?? []).map((n) => n.trim().toLowerCase()));
+  const suggestions =
+    !isEdit && savedProfiles
+      ? savedProfiles
+          .filter((sp) => !exclude.has(sp.name.trim().toLowerCase()))
+          .filter((sp) => (q ? sp.name.toLowerCase().includes(q) : true))
+          .slice(0, 6)
+      : [];
+
+  const save = () => {
+    if (!name.trim()) return;
+    onSave({
+      name: name.trim(),
+      phone: phone.trim() || undefined,
+      emoji: emoji || undefined,
+      color,
+      photo,
+    });
+  };
+
+  return (
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+      <View style={personTrayStyles.wrap}>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrimSoft, opacity: backdrop }]}
+        />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Animated.View style={[personTrayStyles.slideWrap, { transform: [{ translateY: slide }] }]}>
+          <Pressable style={personTrayStyles.sheet} onPress={() => {}}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              contentInsetAdjustmentBehavior="never"
+              keyboardDismissMode="interactive"
+              contentContainerStyle={{ paddingBottom: spacing(2) }}
+            >
+            <AvatarNameRow
+              name={name}
+              onName={setName}
+              color={color}
+              emoji={emoji}
+              photo={photo}
+              onPhoto={setPhoto}
+              autoFocus={!isEdit}
+            />
+
+            {!isEdit && showImport && (
+              <Button
+                title="Import from Contacts"
+                onPress={() => onImport?.()}
+                variant="secondary"
+                style={{ marginBottom: spacing(1) }}
+              />
+            )}
+
+            {suggestions.length > 0 && (
+              <View style={personTrayStyles.suggestions}>
+                {suggestions.map((sp) => (
+                  <Pressable
+                    key={sp.id}
+                    onPress={() => onQuickAdd?.(sp)}
+                    style={personTrayStyles.suggestChip}
+                  >
+                    <Avatar name={sp.name} color={sp.color} emoji={sp.emoji} photo={sp.photo} size={24} />
+                    <Text style={personTrayStyles.suggestName}>{sp.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            <Text style={personTrayStyles.label}>Phone (optional)</Text>
+            <Field
+              value={phone}
+              onChangeText={(t) => setPhone(formatPhone(t))}
+              placeholder="(555) 123-4567"
+              keyboardType="phone-pad"
+            />
+
+            <AvatarStyleControls
+              color={color}
+              onColor={setColor}
+              emoji={emoji}
+              onEmoji={setEmoji}
+              photo={photo}
+              onRemovePhoto={() => setPhoto(undefined)}
+            />
+
+            <Button
+              title={isEdit ? "Save" : "Add"}
+              onPress={save}
+              disabled={!name.trim()}
+              style={{ marginTop: spacing(2) }}
+            />
+            {isEdit && canDelete && onDelete && (
+              <Button title="Remove from bill" onPress={() => onDelete()} variant="ghost" />
+            )}
+            <Button title="Cancel" onPress={onClose} variant="ghost" />
+          </ScrollView>
+        </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+const personTrayStyles = StyleSheet.create({
+  wrap: { flex: 1 },
+  slideWrap: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    padding: spacing(2.5),
+    maxHeight: "88%",
+  },
+  label: {
+    color: colors.textDim,
+    fontSize: 14,
+    marginTop: spacing(1.5),
+    marginBottom: spacing(0.5),
+  },
+  suggestions: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1), marginBottom: spacing(1) },
+  suggestChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing(0.75),
+    paddingVertical: spacing(0.5),
+    paddingHorizontal: spacing(1),
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  suggestName: { color: colors.text, fontSize: 14, fontWeight: "600" },
+});
 
 export function Avatar({
   name,
@@ -451,17 +898,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  field: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing(2),
-    height: 48,
-    color: colors.text,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  prefixField: {
+  fieldBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.surfaceAlt,
@@ -471,12 +908,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  prefixText: { color: colors.text, fontSize: 16 },
-  prefixInput: {
+  fieldInput: {
     flex: 1,
     height: "100%",
     color: colors.text,
     fontSize: 16,
     paddingVertical: 0,
+    paddingRight: 34, // leave room for the focus checkmark on the right
   },
+  fieldCheckWrap: {
+    position: "absolute",
+    right: spacing(1),
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+  },
+  fieldCheck: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: colors.transparent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fieldCheckFilled: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  prefixText: { color: colors.text, fontSize: 16 },
 });

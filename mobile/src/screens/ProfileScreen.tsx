@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Person } from "../types";
-import { AvatarNameRow, AvatarStyleControls, Field, PrefixField } from "../ui";
+import { AvatarNameRow, AvatarStyleControls, Field, PrefixField, SwipeBackView } from "../ui";
+import { formatPhone } from "../util";
 import { colors, personColors, spacing } from "../theme";
 
 export function ProfileScreen({
@@ -16,7 +17,7 @@ export function ProfileScreen({
   onBack: () => void;
 }) {
   const [name, setName] = useState(me.name);
-  const [phone, setPhone] = useState(me.phone ?? "");
+  const [phone, setPhone] = useState(formatPhone(me.phone ?? ""));
   const [venmo, setVenmo] = useState(me.venmo ?? "");
   const [zelle, setZelle] = useState(me.zelle ?? "");
   const [emoji, setEmoji] = useState(me.emoji ?? "");
@@ -40,7 +41,7 @@ export function ProfileScreen({
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <SwipeBackView onBack={saveAndBack} style={{ flex: 1 }}>
       <View style={styles.header}>
         <Pressable onPress={saveAndBack} hitSlop={8}>
           <Text style={styles.back}>‹ Save</Text>
@@ -63,7 +64,7 @@ export function ProfileScreen({
         />
 
         <Text style={styles.label}>Phone</Text>
-        <Field value={phone} onChangeText={setPhone} placeholder="Your phone number" keyboardType="phone-pad" />
+        <Field value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(555) 123-4567" keyboardType="phone-pad" />
 
         <Text style={styles.label}>Venmo handle</Text>
         <PrefixField
@@ -98,7 +99,7 @@ export function ProfileScreen({
           onRemovePhoto={() => setPhoto(undefined)}
         />
       </ScrollView>
-    </View>
+    </SwipeBackView>
   );
 }
 

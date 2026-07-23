@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { Person, SavedReceipt } from "../types";
+import { formatPhone } from "../util";
 import { pickContact } from "../contacts";
 import { computeBreakdown, toDollars } from "../split";
 import {
@@ -90,7 +91,7 @@ export function ContactsScreen({
     setEditing(p);
     setCreating(false);
     setName(p.name);
-    setPhone(p.phone ?? "");
+    setPhone(formatPhone(p.phone ?? ""));
     setEmoji(p.emoji ?? "");
     setColor(p.color || personColors[0]);
     setPhoto(p.photo);
@@ -218,7 +219,7 @@ export function ContactsScreen({
                               <Text style={styles.billDate} numberOfLines={1}>
                                 {r.bill.name || formatDate(r.dateISO)}
                               </Text>
-                              <Icon name="clock" size={12} color={colors.textDim} />
+                              <Icon name="external-link" size={12} color={colors.textDim} />
                             </View>
                             {owes && <Text style={styles.billDue}>Owed</Text>}
                             <Text style={styles.billShare}>${toDollars(shareCents)}</Text>
@@ -247,7 +248,12 @@ export function ContactsScreen({
       >
         <Pressable style={styles.modalWrap} onPress={close}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <ScrollView keyboardShouldPersistTaps="handled">
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              keyboardDismissMode="interactive"
+              contentContainerStyle={{ paddingBottom: spacing(2) }}
+            >
               <Text style={styles.sheetTitle}>{creating ? "New contact" : "Edit contact"}</Text>
               <AvatarNameRow
                 name={name}
@@ -259,7 +265,7 @@ export function ContactsScreen({
                 autoFocus={creating}
               />
               <Text style={styles.label}>Phone</Text>
-              <Field value={phone} onChangeText={setPhone} placeholder="Phone number" keyboardType="phone-pad" />
+              <Field value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(555) 123-4567" keyboardType="phone-pad" />
               <AvatarStyleControls
                 color={color}
                 onColor={setColor}
