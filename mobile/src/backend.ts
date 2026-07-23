@@ -98,6 +98,27 @@ export async function shareBill(
   });
 }
 
+export type SharedBillState = {
+  bill: Bill;
+  unpaid?: string[];
+  receiptImageUrl?: string | null;
+};
+
+/**
+ * Read the current server state of a shared bill (public; no token). Used to
+ * pull live paid-status into History. Returns null if unset/unreachable/expired.
+ */
+export async function fetchSharedBill(id: string): Promise<SharedBillState | null> {
+  if (!BASE) return null;
+  try {
+    const res = await fetch(`${BASE}/api/bills/${id}`);
+    if (!res.ok) return null;
+    return (await res.json()) as SharedBillState;
+  } catch {
+    return null;
+  }
+}
+
 /** Push a later edit (paid status, added Venmo/phone) to an already-shared bill. */
 export async function updateSharedBill(
   id: string,

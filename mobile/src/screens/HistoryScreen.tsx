@@ -2,12 +2,24 @@
 // per-person breakdown; "Open" reopens the bill's final screen to tweak or
 // re-send the text blast.
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Image, LayoutAnimation, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Animated,
+  Image,
+  LayoutAnimation,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Person, SavedReceipt } from "../types";
 import { computeBreakdown, toDollars } from "../split";
 import { Avatar, Button, Card, Icon, SwipeRow, SwipeRowHandle } from "../ui";
 import { canShareBreakdown, shareBreakdown } from "../shareLink";
-import { shortUrl } from "../backend";
+import { fetchSharedBill, isBackendEnabled, shortUrl, updateSharedBill } from "../backend";
 import { colors, radius, spacing, withAlpha } from "../theme";
 
 function formatDate(iso: string): string {
@@ -48,6 +60,7 @@ export function HistoryScreen({
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const rowRefs = useRef<Record<string, SwipeRowHandle | null>>({});
   const scrollRef = useRef<ScrollView>(null);
   const rowY = useRef<Record<string, number>>({});
@@ -79,6 +92,39 @@ export function HistoryScreen({
     return () => clearTimeout(t);
   }, [focusId]);
 
+  // Pull live paid-status from the server for shared bills so History reflects
+  // who has actually paid (payers mark themselves paid via the share link).
+  const syncPaidStatus = async (list: SavedReceipt[]) => {
+    if (!isBackendEnabled()) return;
+    await Promise.all(
+      list
+        .filter((r) => r.shareId)
+        .map(async (r) => {
+          const remote = await fetchSharedBill(r.shareId as string);
+          if (!remote || !Array.isArray(remote.unpaid)) return;
+          const cur = r.unpaid ?? [];
+          const next = remote.unpaid;
+          const same = cur.length === next.length && next.every((x) => cur.includes(x));
+          if (!same) onUpdate({ ...r, unpaid: next });
+        }),
+    );
+  };
+
+  // Sync once whenever the History screen is opened.
+  useEffect(() => {
+    syncPaidStatus(history);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await syncPaidStatus(history);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Resolve a bill participant to their live profile/contact (so an updated photo
   // shows in history), falling back to the bill's own snapshot if unlinked/deleted.
   const live = (p: Person): Person => {
@@ -98,10 +144,31 @@ export function HistoryScreen({
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.h1}>History</Text>
-        <View style={{ width: 60 }} />
+        {isBackendEnabled() ? (
+          <Pressable
+            onPress={onRefresh}
+            hitSlop={8}
+            disabled={refreshing}
+            style={{ width: 60, alignItems: "flex-end" }}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Icon name="refresh-cw" size={18} color={colors.primary} />
+            )}
+          </Pressable>
+        ) : (
+          <View style={{ width: 60 }} />
+        )}
       </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{ padding: spacing(2), paddingBottom: spacing(4) }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
+      >
         {history.length === 0 ? (
           <Text style={styles.empty}>
             No splits yet. Finished splits show up here.
@@ -122,6 +189,10 @@ export function HistoryScreen({
                 ? unpaid.filter((x) => x !== pid)
                 : [...unpaid, pid];
               onUpdate({ ...r, unpaid: next });
+              // Keep the shared page in sync when the owner overrides a status.
+              if (r.shareId && r.shareEditToken) {
+                updateSharedBill(r.shareId, r.shareEditToken, { unpaid: next }).catch(() => {});
+              }
             };
             return (
               <View
